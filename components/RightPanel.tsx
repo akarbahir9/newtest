@@ -175,14 +175,7 @@ const RightPanel: React.FC = () => {
           Visuals
         </button>
         
-        {/* Close Button */}
-        <button 
-            onClick={() => setRightPanelOpen(false)}
-            className="absolute right-0 top-0 bottom-0 px-2 text-zinc-500 hover:text-zinc-300"
-            title="Close Panel"
-        >
-            <X className="w-4 h-4" />
-        </button>
+        {/* Close Button REMOVED per user request */}
       </div>
 
       {/* CONTENT: ASSISTANT */}

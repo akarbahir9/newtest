@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X } from 'lucide-react';
+import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
-import { Project } from '../types';
+import { Project, ProjectType, ProjectFormat } from '../types';
 
 const GENRES = [
     "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Cyberpunk", 
@@ -18,6 +18,8 @@ const Dashboard: React.FC = () => {
   
   // Form State
   const [newTitle, setNewTitle] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('Screenplay');
+  const [projectFormat, setProjectFormat] = useState<ProjectFormat>('Feature');
   const [newGenres, setNewGenres] = useState<string[]>(['Sci-Fi']);
   const [newLogline, setNewLogline] = useState('');
   const [newTheme, setNewTheme] = useState('');
@@ -30,15 +32,19 @@ const Dashboard: React.FC = () => {
         alert("Please select at least one genre.");
         return;
     }
-    addProject(newTitle, newGenres, {
+    
+    addProject(newTitle, projectType, projectFormat, newGenres, {
         logline: newLogline,
         theme: newTheme,
         setting: newSetting,
         protagonistGoal: newGoal
     });
+    
     setShowNewProjectModal(false);
     // Reset
     setNewTitle('');
+    setProjectType('Screenplay');
+    setProjectFormat('Feature');
     setNewGenres(['Sci-Fi']);
     setNewLogline('');
     setNewTheme('');
@@ -117,13 +123,13 @@ const Dashboard: React.FC = () => {
                 className="group flex items-center justify-between p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-600 cursor-pointer transition relative"
               >
                 <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded ${project.type === 'Screenplay' ? 'bg-primary-900/30 text-primary-400 border-primary-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700'} flex items-center justify-center border flex-shrink-0`}>
-                    {project.type === 'Screenplay' ? <Film className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                <div className={`w-10 h-10 rounded ${project.type === 'Screenplay' ? 'bg-primary-900/30 text-primary-400 border-primary-500/20' : project.type === 'Serial' ? 'bg-purple-900/30 text-purple-400 border-purple-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700'} flex items-center justify-center border flex-shrink-0`}>
+                    {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
                     <h3 className="text-sm font-medium text-zinc-200 group-hover:text-white truncate">{project.title}</h3>
                     <p className="text-xs text-zinc-500 truncate">
-                        {project.genres.join(', ')} • {project.type}
+                        {project.type} {project.type === 'Screenplay' && project.format ? `(${project.format})` : ''} • {project.genres.join(', ')}
                     </p>
                 </div>
                 </div>
@@ -145,9 +151,61 @@ const Dashboard: React.FC = () => {
       {/* Create Modal */}
       {showNewProjectModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[95vh]">
                   <h3 className="text-lg font-medium text-zinc-100 mb-4">Start New Project</h3>
-                  <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                  <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
+                      
+                      {/* 1. Project Type Selection */}
+                      <div className="space-y-3">
+                          <label className="block text-xs text-zinc-500 font-semibold uppercase tracking-wider">Select Format</label>
+                          <div className="grid grid-cols-3 gap-3">
+                              <div 
+                                onClick={() => setProjectType('Screenplay')}
+                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Screenplay' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
+                              >
+                                  <Clapperboard className="w-5 h-5" />
+                                  <span className="text-xs font-medium">Script</span>
+                              </div>
+                              <div 
+                                onClick={() => { setProjectType('Novel'); setProjectFormat('Standard'); }}
+                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Novel' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
+                              >
+                                  <Book className="w-5 h-5" />
+                                  <span className="text-xs font-medium">Novel</span>
+                              </div>
+                              <div 
+                                onClick={() => { setProjectType('Serial'); setProjectFormat('Episode'); }}
+                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Serial' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
+                              >
+                                  <Tv className="w-5 h-5" />
+                                  <span className="text-xs font-medium">Serial</span>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* 2. Conditional Sub-Type Selection for Scripts */}
+                      {projectType === 'Screenplay' && (
+                          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                              <label className="block text-xs text-zinc-500">Script Format</label>
+                              <div className="flex gap-3">
+                                  <button 
+                                    type="button"
+                                    onClick={() => setProjectFormat('Feature')}
+                                    className={`flex-1 py-2 text-xs rounded border transition ${projectFormat === 'Feature' ? 'bg-zinc-800 border-primary-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
+                                  >
+                                      Feature Film
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => setProjectFormat('Short')}
+                                    className={`flex-1 py-2 text-xs rounded border transition ${projectFormat === 'Short' ? 'bg-zinc-800 border-primary-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
+                                  >
+                                      Short Film
+                                  </button>
+                              </div>
+                          </div>
+                      )}
+
                       <div className="space-y-4">
                           <div>
                               <label className="block text-xs text-zinc-500 mb-1">Title</label>
@@ -156,7 +214,7 @@ const Dashboard: React.FC = () => {
                                 value={newTitle}
                                 onChange={e => setNewTitle(e.target.value)}
                                 required
-                                placeholder="e.g. The Martian"
+                                placeholder={projectType === 'Screenplay' ? "e.g. The Martian" : "e.g. The Great Gatsby"}
                               />
                           </div>
                           <div>

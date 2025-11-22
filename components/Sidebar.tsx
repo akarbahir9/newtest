@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
-  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X
+  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { ViewType } from '../types';
@@ -10,16 +11,24 @@ const Sidebar: React.FC = () => {
   const { 
     currentView, navigateTo, projects, currentProject, 
     setCurrentProject, setCurrentSceneId, currentSceneId, addScene,
-    isSidebarOpen, setSidebarOpen
+    isSidebarOpen, setSidebarOpen, addEpisode
   } = useProject();
   
   const [isProjectOpen, setIsProjectOpen] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [expandedEpisodes, setExpandedEpisodes] = useState<Record<string, boolean>>({});
+
+  const toggleEpisode = (epId: string) => {
+      setExpandedEpisodes(prev => ({...prev, [epId]: !prev[epId]}));
+  };
 
   const getItemClass = (view: ViewType) => {
     const base = "sidebar-item flex items-center gap-2 px-2 py-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 rounded text-xs font-medium transition cursor-pointer";
     return currentView === view ? "bg-zinc-800/50 text-zinc-100" : base;
   };
+
+  const isNovel = currentProject?.type === 'Novel';
+  const isSerial = currentProject?.type === 'Serial';
 
   return (
     <aside 
@@ -94,11 +103,15 @@ const Sidebar: React.FC = () => {
         <div className="flex-1 overflow-y-auto py-2 px-2">
             <div className="text-xxs font-semibold text-zinc-500 uppercase tracking-wider px-2 mb-2 flex justify-between items-center group">
             Project Structure
-            <Plus 
-                onClick={(e) => { e.stopPropagation(); addScene(); }} 
-                className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition" 
-                title="Add Scene"
-            />
+            {isSerial ? (
+                <Plus onClick={(e) => { e.stopPropagation(); addEpisode(); }} className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition" title="Add Episode" />
+            ) : (
+                <Plus 
+                    onClick={(e) => { e.stopPropagation(); addScene(); }} 
+                    className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition" 
+                    title={isNovel ? "Add Chapter" : "Add Scene"}
+                />
+            )}
             </div>
             
             {/* Project Item */}
@@ -120,22 +133,53 @@ const Sidebar: React.FC = () => {
                     <MapPin className="w-3 h-3" /> Locations
                 </div>
                 <div className="mt-2 pt-2 border-t border-zinc-800/50">
-                    <div className="px-2 text-xxs text-zinc-600 mb-1 flex justify-between">
-                        SCENES
-                        <FilePlus className="w-3 h-3 cursor-pointer hover:text-primary-400" onClick={(e) => { e.stopPropagation(); addScene(); }} />
-                    </div>
-                    {currentProject.scenes.map((scene) => (
-                         <div 
-                            key={scene.id}
-                            onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} 
-                            className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id && currentView === 'editor' ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'}`}
-                         >
-                            <span className={`font-mono text-xxs w-4 ${currentSceneId === scene.id ? 'text-primary-500' : 'text-zinc-600'}`}>
-                                {String(scene.number).padStart(3, '0')}
-                            </span> 
-                            <span className="truncate">{scene.title || 'UNTITLED'}</span>
+                    {isSerial ? (
+                        // --- SERIAL RENDERER (Episodes -> Scenes) ---
+                        <div>
+                            {currentProject.episodes?.map(ep => {
+                                const epScenes = currentProject.scenes.filter(s => s.episodeId === ep.id);
+                                const isExpanded = expandedEpisodes[ep.id] !== false; 
+                                return (
+                                    <div key={ep.id} className="mb-1">
+                                        <div className="flex items-center justify-between px-2 py-1 text-zinc-400 hover:bg-zinc-800/20 rounded cursor-pointer group/ep" onClick={() => toggleEpisode(ep.id)}>
+                                            <div className="flex items-center gap-1.5 text-xs overflow-hidden">
+                                                <Tv className="w-3 h-3 text-zinc-600" />
+                                                <span className="truncate font-medium text-zinc-300">{ep.title}</span>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <Plus onClick={(e) => { e.stopPropagation(); addScene(ep.id); if (!isExpanded) toggleEpisode(ep.id); }} className="w-3 h-3 mr-1 opacity-0 group-hover/ep:opacity-100 hover:text-white" title="Add Scene to Ep" />
+                                                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                            </div>
+                                        </div>
+                                        {isExpanded && (
+                                            <div className="pl-3 border-l border-zinc-800/50 ml-2 mt-0.5 space-y-0.5">
+                                                {epScenes.map(scene => (
+                                                    <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                                        <span className="truncate">{scene.title || 'Untitled Scene'}</span>
+                                                    </div>
+                                                ))}
+                                                {epScenes.length === 0 && <div className="text-[10px] text-zinc-600 px-2 italic">No scenes</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
-                    ))}
+                    ) : (
+                        // --- STANDARD RENDERER (Flat Scenes) ---
+                        <>
+                            <div className="px-2 text-xxs text-zinc-600 mb-1 flex justify-between">
+                                {isNovel ? 'CHAPTERS' : 'SCENES'}
+                                <FilePlus className="w-3 h-3 cursor-pointer hover:text-primary-400" onClick={(e) => { e.stopPropagation(); addScene(); }} />
+                            </div>
+                            {currentProject.scenes.map((scene) => (
+                                <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id && currentView === 'editor' ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'}`}>
+                                    <span className={`font-mono text-xxs w-4 ${currentSceneId === scene.id ? 'text-primary-500' : 'text-zinc-600'}`}>{String(scene.number).padStart(3, '0')}</span> 
+                                    <span className="truncate">{scene.title || 'UNTITLED'}</span>
+                                </div>
+                            ))}
+                        </>
+                    )}
                 </div>
                 </div>
             )}

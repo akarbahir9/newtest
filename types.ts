@@ -1,16 +1,28 @@
 
 export type ViewType = 'editor' | 'dashboard' | 'search' | 'inbox' | 'characters' | 'locations' | 'settings' | 'outline';
 
+export type ProjectType = 'Screenplay' | 'Novel' | 'Serial';
+export type ProjectFormat = 'Feature' | 'Short' | 'Episode' | 'Standard';
+
+export interface Episode {
+    id: string;
+    title: string;
+    number: number;
+    summary?: string;
+}
+
 export interface Project {
     id: string;
     title: string;
-    type: 'Screenplay' | 'Novel';
-    genres: string[]; // Changed from single string to array
+    type: ProjectType;
+    format?: ProjectFormat; 
+    genres: string[];
     updatedAt: string;
     logline?: string;
     theme?: string;
     setting?: string;
     protagonistGoal?: string;
+    episodes?: Episode[]; // New: For Serials
     scenes: Scene[];
     characters: Character[];
     locations: Location[];
@@ -20,6 +32,7 @@ export interface Scene {
     id: string;
     title: string;
     number: number;
+    episodeId?: string; // New: Link to Episode
     content: string; // HTML/Text content
     summary?: string;
 }

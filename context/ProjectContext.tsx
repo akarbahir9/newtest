@@ -1,12 +1,12 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Project, Scene, Character, Location, ViewType } from '../types';
+import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode } from '../types';
 
 // Initial Seed Data
 const SEED_PROJECT: Project = {
   id: 'proj-1',
   title: 'The Last Signal',
   type: 'Screenplay',
+  format: 'Feature',
   genres: ['Sci-Fi', 'Thriller', 'Psychological'],
   logline: 'A stranded pilot and a glitching AI must cooperate to escape a dying ship before it falls into a black hole.',
   theme: 'Trust vs. Logic',
@@ -73,15 +73,24 @@ interface ProjectContextType {
   setCurrentProject: (id: string) => void;
   setCurrentSceneId: (id: string) => void;
   navigateTo: (view: ViewType) => void;
-  addProject: (title: string, genres: string[], metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }) => void;
+  addProject: (
+      title: string, 
+      type: ProjectType, 
+      format: ProjectFormat,
+      genres: string[], 
+      metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }
+  ) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
-  addScene: () => void;
+  addScene: (episodeId?: string) => void;
   updateSceneContent: (sceneId: string, content: string) => void;
   updateSceneSummary: (sceneId: string, summary: string) => void;
   addCharacter: (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => void;
   updateCharacter: (char: Character) => void;
   addLocation: (loc: Omit<Location, 'id'>) => void;
+  // Functions for Episode Management
+  addEpisode: () => void;
+  updateEpisode: (episodeId: string, title: string) => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -92,23 +101,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [currentSceneId, setCurrentSceneId] = useState<string>('s2');
   const [currentView, setCurrentView] = useState<ViewType>('editor');
   
-  // UI State
-  const [isSidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer
-  const [isRightPanelOpen, setRightPanelOpen] = useState(true); // Desktop toggle
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isRightPanelOpen, setRightPanelOpen] = useState(true);
 
-  // Load from local storage on mount
   useEffect(() => {
     const saved = localStorage.getItem('zoer-projects');
     if (saved) {
       setProjects(JSON.parse(saved));
     }
-    // Default Right Panel to closed on mobile initial load
     if (window.innerWidth < 768) {
         setRightPanelOpen(false);
     }
   }, []);
 
-  // Save to local storage on change
   useEffect(() => {
     localStorage.setItem('zoer-projects', JSON.stringify(projects));
   }, [projects]);
@@ -117,26 +122,59 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const navigateTo = (view: ViewType) => {
     setCurrentView(view);
-    // On mobile, auto-close sidebar when navigating
     if (window.innerWidth < 768) {
         setSidebarOpen(false);
     }
   };
 
-  const addProject = (title: string, genres: string[], metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }) => {
+  const addProject = (
+      title: string, 
+      type: ProjectType, 
+      format: ProjectFormat,
+      genres: string[], 
+      metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }
+  ) => {
+    const epId = Date.now().toString() + 'ep';
+    const sceneId = Date.now().toString() + 's';
+    
+    let initialScenes: Scene[] = [];
+    let initialEpisodes: Episode[] = [];
+
+    if (type === 'Serial') {
+        initialEpisodes = [{ id: epId, title: 'Episode 1: Pilot', number: 1 }];
+        initialScenes = [{ 
+            id: sceneId, 
+            number: 1, 
+            title: 'TEASER', 
+            content: '<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>',
+            episodeId: epId 
+        }];
+    } else if (type === 'Novel') {
+        initialScenes = [{ 
+            id: sceneId, 
+            number: 1, 
+            title: 'Chapter 1', 
+            content: '<div class="novel-chapter">Chapter 1</div><p>Start writing your chapter here...</p>' 
+        }];
+    } else {
+        initialScenes = [{ 
+            id: sceneId, 
+            number: 1, 
+            title: 'INT. LOCATION - DAY', 
+            content: '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action">Action description...</div>' 
+        }];
+    }
+
     const newProject: Project = {
       id: Date.now().toString(),
       title,
-      type: 'Screenplay',
+      type,
+      format,
       genres,
       ...metadata,
       updatedAt: new Date().toISOString(),
-      scenes: [{ 
-        id: Date.now().toString() + 's', 
-        number: 1, 
-        title: 'INT. LOCATION - DAY', 
-        content: '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action">Action here...</div>' 
-      }],
+      scenes: initialScenes,
+      episodes: initialEpisodes,
       characters: [],
       locations: []
     };
@@ -154,7 +192,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     const updatedProjects = projects.filter(p => p.id !== id);
     setProjects(updatedProjects);
 
-    // If the deleted project was active, switch to another one if available
     if (currentProjectId === id) {
         if (updatedProjects.length > 0) {
             setCurrentProjectId(updatedProjects[0].id);
@@ -166,15 +203,59 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const addScene = () => {
+  // --- EPISODE MANAGEMENT ---
+  const addEpisode = () => {
+      if (!currentProject || currentProject.type !== 'Serial') return;
+      const nextNum = (currentProject.episodes?.length || 0) + 1;
+      const newEp: Episode = {
+          id: Date.now().toString() + 'ep',
+          title: `Episode ${nextNum}`,
+          number: nextNum
+      };
+      
+      const updatedProject = { 
+          ...currentProject, 
+          episodes: [...(currentProject.episodes || []), newEp] 
+      };
+      setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+  };
+
+  const updateEpisode = (episodeId: string, title: string) => {
+      if (!currentProject || !currentProject.episodes) return;
+      const updatedEpisodes = currentProject.episodes.map(e => e.id === episodeId ? { ...e, title } : e);
+      setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, episodes: updatedEpisodes } : p));
+  };
+
+  const addScene = (episodeId?: string) => {
     if (!currentProject) return;
+    
+    let targetEpisodeId = episodeId;
+    if (currentProject.type === 'Serial' && !targetEpisodeId) {
+        if (currentProject.episodes && currentProject.episodes.length > 0) {
+            targetEpisodeId = currentProject.episodes[currentProject.episodes.length - 1].id;
+        }
+    }
+
+    const nextNum = currentProject.scenes.length + 1;
+    let newTitle = 'INT. LOCATION - DAY';
+    let newContent = '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action"></div>';
+
+    if (currentProject.type === 'Novel') {
+        newTitle = `Chapter ${nextNum}`;
+        newContent = `<div class="novel-chapter">Chapter ${nextNum}</div><p></p>`;
+    } else if (currentProject.type === 'Serial') {
+        newTitle = `Scene ${nextNum}`;
+    }
+
     const newScene: Scene = {
       id: Date.now().toString(),
-      number: currentProject.scenes.length + 1,
-      title: 'INT. LOCATION - DAY',
-      content: '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action"></div>',
+      number: nextNum,
+      title: newTitle,
+      content: newContent,
+      episodeId: targetEpisodeId,
       summary: ''
     };
+    
     const updatedProject = { ...currentProject, scenes: [...currentProject.scenes, newScene] };
     setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
     setCurrentSceneId(newScene.id);
@@ -184,51 +265,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const updateSceneContent = (sceneId: string, content: string) => {
     if (!currentProject) return;
 
-    // Auto-extract title from content logic
     let newTitle = null;
-    
-    // 1. Try to find the .sp-slug div specifically
-    const slugRegex = /<div class="sp-slug"[^>]*>(.*?)<\/div>/i;
-    const slugMatch = content.match(slugRegex);
-    
-    if (slugMatch && slugMatch[1]) {
-        // Strip tags/entities to get plain text
-        let cleanText = slugMatch[1].replace(/<[^>]+>/g, '').trim();
-        cleanText = cleanText.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
-        if (cleanText) newTitle = cleanText;
+    if (currentProject.type === 'Novel') {
+        const chapMatch = content.match(/<div class="novel-chapter"[^>]*>(.*?)<\/div>/i);
+        if (chapMatch && chapMatch[1]) {
+            newTitle = chapMatch[1].replace(/<[^>]+>/g, '').trim();
+        }
     } else {
-        // 2. Fallback: Scan text content for "INT." or "EXT." at start of lines
-        // Create a temp element to extract text content safely
-        try {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(content, 'text/html');
-            const text = doc.body.innerText || "";
-            // Regex to find INT. or EXT. at start of string or new line
-            const rawMatch = text.match(/(?:^|\n)((?:INT|EXT|I\/E)\..*?)(?:\n|$)/i);
-            if (rawMatch && rawMatch[1]) {
-                newTitle = rawMatch[1].trim();
-            }
-        } catch (e) {
-            // fallback if DOMParser fails or env issue
+        const slugMatch = content.match(/<div class="sp-slug"[^>]*>(.*?)<\/div>/i);
+        if (slugMatch && slugMatch[1]) {
+            let cleanText = slugMatch[1].replace(/<[^>]+>/g, '').trim();
+            if (cleanText) newTitle = cleanText.toUpperCase();
         }
     }
 
     const updatedScenes = currentProject.scenes.map(s => 
-      s.id === sceneId ? { 
-          ...s, 
-          content, 
-          // Update title if a slug was found, otherwise keep old title. ALWAYS CAPITALIZED.
-          title: newTitle ? newTitle.toUpperCase() : s.title 
-      } : s
+      s.id === sceneId ? { ...s, content, title: newTitle || s.title } : s
     );
     setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
   };
 
   const updateSceneSummary = (sceneId: string, summary: string) => {
     if (!currentProject) return;
-    const updatedScenes = currentProject.scenes.map(s => 
-      s.id === sceneId ? { ...s, summary } : s
-    );
+    const updatedScenes = currentProject.scenes.map(s => s.id === sceneId ? { ...s, summary } : s);
     setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
   };
 
@@ -274,7 +333,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       updateSceneSummary,
       addCharacter,
       updateCharacter,
-      addLocation
+      addLocation,
+      // CRITICAL FIX: Expose episode functions
+      addEpisode,
+      updateEpisode,
     }}>
       {children}
     </ProjectContext.Provider>
