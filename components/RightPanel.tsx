@@ -226,7 +226,7 @@ const RightPanel: React.FC = () => {
                           <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
                           <div>
                             <span className="font-medium block mb-0.5">Contradiction Detected</span>
-                            <span className="opacity-80">In Scene 001, Aria broke her <span className="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
+                            <span className="opacity-80">In Scene 001, Aria broke her <span class="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
                           </div>
                         </div>
                       )}

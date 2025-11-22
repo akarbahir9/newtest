@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Film, Edit3, ArrowRight, Plus } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
