@@ -111,7 +111,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [currentSceneId, setCurrentSceneId] = useState<string>('s2');
   const [currentView, setCurrentView] = useState<ViewType>('editor');
   
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [isRightPanelOpen, setRightPanelOpen] = useState(true);
   
   // State for confirmation modal
@@ -167,7 +167,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             id: sceneId, 
             number: 1, 
             title: 'TEASER', 
-            content: '<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>',
+            content: `<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>`,
             episodeId: epId 
         }];
     } else if (type === 'Novel') {

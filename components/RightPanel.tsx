@@ -2,25 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, Bot, AlertTriangle, PenTool, Mic2, 
   BrainCircuit, Image, Mic, ArrowUp, X, FileInput, Copy,
-  Lightbulb, RefreshCw, Zap, Sparkles, List
+  Lightbulb, RefreshCw, Zap, Sparkles, List, CheckCircle2, FileCheck, Replace
 } from 'lucide-react';
 import { generateAssistantResponse, generateStructuredSuggestions } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { useProject } from '../context/ProjectContext';
 
 const RightPanel: React.FC = () => {
-  const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, setRightPanelOpen } = useProject();
+  const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, setRightPanelOpen, showConfirmation } = useProject();
   const [activeTab, setActiveTab] = useState<'assistant' | 'suggestions' | 'memory' | 'visuals'>('assistant');
   
   // Chat State
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'user', text: 'Check continuity for Aria\'s injury.' },
+    { id: '1', role: 'user', text: 'I need help with the pacing here.' },
     { 
       id: '2', 
       role: 'model', 
-      text: 'Contradiction detected regarding Aria\'s injury.',
-      hasContradiction: true 
+      text: 'I can help. Ask me to check the scene or suggest a rewrite.',
     }
   ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -48,8 +47,20 @@ const RightPanel: React.FC = () => {
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
 
+      // Compile full script content for memory
+      // We strip heavy HTML tags to keep token count reasonable but preserve text structure
+      // Also ensuring we don't send undefined values
+      const fullScriptHistory = currentProject?.scenes
+        .sort((a, b) => a.number - b.number)
+        .map(s => {
+            const isCurrent = s.id === currentSceneId;
+            const cleanContent = s.content ? s.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            return `SCENE ${s.number} [${s.title}]${isCurrent ? ' (CURRENTLY EDITING)' : ''}:\n${cleanContent}\n`;
+        })
+        .join('\n----------------\n') || "No scenes yet.";
+
       return `
-        Project: ${currentProject?.title}
+        Project: ${currentProject?.title || 'Untitled'}
         Type: ${currentProject?.type} (${currentProject?.format || 'Standard'})
         Genres: ${genreString}
         Logline: ${currentProject?.logline || 'N/A'}
@@ -58,41 +69,59 @@ const RightPanel: React.FC = () => {
         Protagonist Goal: ${currentProject?.protagonistGoal || 'N/A'}
         
         CHARACTERS & RELATIONSHIPS:
-        ${charDetails}
+        ${charDetails || 'No characters defined.'}
 
-        Current Scene: ${scene?.title}
-        Scene Content: ${scene?.content.replace(/<[^>]*>?/gm, '')}
+        === FULL SCRIPT MEMORY ===
+        (Use the following content to answer questions about previous scenes, context, or to restore lost text. 
+        If the user asks "what happened in scene X", quote the text below.)
+        
+        ${fullScriptHistory}
+        
+        === END SCRIPT MEMORY ===
+
+        CURRENT SCENE: ${scene?.title || 'Unknown'}
+        CONTENT: ${scene?.content.replace(/<[^>]*>?/gm, '') || ''}
       `;
+  };
+
+  const executeCommand = async (command: string) => {
+      if (isChatLoading) return;
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: command };
+      setMessages(prev => [...prev, userMsg]);
+      setIsChatLoading(true);
+
+      try {
+        const contextString = buildDeepContext();
+        const history = messages.map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
+        
+        // Now passing contextString explicitly to the service
+        const responseText = await generateAssistantResponse(
+            history, 
+            command,
+            contextString
+        );
+        
+        const modelMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'model',
+          text: responseText
+        };
+        setMessages(prev => [...prev, modelMsg]);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsChatLoading(false);
+      }
   };
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
-    setMessages(prev => [...prev, userMsg]);
+    const cmd = input;
     setInput('');
-    setIsChatLoading(true);
-
-    try {
-      const contextString = buildDeepContext();
-      const history = messages.map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }]
-      }));
-      
-      const responseText = await generateAssistantResponse(history, `[Deep Context Loaded: \n${contextString}]\n\nUser Query: ${userMsg.text}`);
-      
-      const modelMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'model',
-        text: responseText
-      };
-      setMessages(prev => [...prev, modelMsg]);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsChatLoading(false);
-    }
+    await executeCommand(cmd);
   };
 
   const handleGenerateSuggestions = async () => {
@@ -114,12 +143,10 @@ const RightPanel: React.FC = () => {
       const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
       
       // If it's plain text suggest, wrap it in action if needed, or just append
-      // For the Editor to detect it as append, we just pass it. 
-      // Editor logic handles the rest.
       let finalContent = scene.content;
       
+      // Basic append logic - editor handles the formatting render
       if (!cleanContent.startsWith('<div') && !cleanContent.startsWith('<p')) {
-          // It's likely raw text from a suggestion
           if (currentProject?.type === 'Novel') {
               finalContent += `<p>${cleanContent}</p>`;
           } else {
@@ -130,6 +157,15 @@ const RightPanel: React.FC = () => {
       }
 
       updateSceneContent(scene.id, finalContent);
+  };
+
+  const handleReplace = (contentToInsert: string) => {
+    if (!scene || !contentToInsert) return;
+    
+    showConfirmation("This will replace the current scene content with the AI suggestion. This cannot be undone. Are you sure?", () => {
+        const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
+        updateSceneContent(scene.id, cleanContent);
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -147,19 +183,27 @@ const RightPanel: React.FC = () => {
         const content = part.replace(/<\/?screenplay>/g, '').trim();
         return (
           <div key={index} className="my-3 relative group">
-             <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden">
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition z-10">
+             <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden relative">
+                <div className="absolute top-2 right-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => handleInsert(content)}
-                        className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-primary-400 rounded border border-zinc-700 flex items-center gap-1 shadow-lg"
-                        title="Insert into Editor"
+                        className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-600 flex items-center gap-1 shadow-lg backdrop-blur-sm transition-all"
+                        title="Append to Scene"
                     >
-                        <FileInput className="w-3 h-3" />
-                        <span className="text-[10px] font-medium">Insert</span>
+                        <FileInput className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold">APPEND</span>
+                    </button>
+                    <button 
+                        onClick={() => handleReplace(content)}
+                        className="p-1.5 bg-emerald-900/30 hover:bg-emerald-800/50 text-emerald-400 rounded border border-emerald-500/30 flex items-center gap-1 shadow-lg backdrop-blur-sm transition-all"
+                        title="Replace Scene Content"
+                    >
+                        <Replace className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold">REPLACE</span>
                     </button>
                 </div>
                 <div 
-                    className="font-screenplay text-xs text-zinc-300 leading-relaxed pointer-events-none select-none"
+                    className="font-screenplay text-xs text-zinc-300 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar select-text cursor-text"
                     dangerouslySetInnerHTML={{ __html: content }}
                 />
              </div>
@@ -167,7 +211,7 @@ const RightPanel: React.FC = () => {
         );
       } else if (part.trim().length > 0) {
         return (
-          <div key={index} className="whitespace-pre-wrap leading-relaxed text-zinc-300">
+          <div key={index} className="whitespace-pre-wrap leading-relaxed text-zinc-300 select-text">
             {part.trim()}
           </div>
         );
@@ -352,7 +396,7 @@ const RightPanel: React.FC = () => {
                           <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
                           <div>
                             <span className="font-medium block mb-0.5">Contradiction Detected</span>
-                            <span className="opacity-80">In Scene 001, Aria broke her <span class="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
+                            <span className="opacity-80">In Scene 001, Aria broke her <span className="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
                           </div>
                         </div>
                       )}
@@ -382,13 +426,26 @@ const RightPanel: React.FC = () => {
           <div>
             <div className="text-xxs font-semibold text-zinc-500 uppercase mb-3 tracking-wider">Quick Actions</div>
             <div className="grid grid-cols-2 gap-2">
-              <button className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left">
-                <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
-                <span className="text-xs font-medium text-zinc-300">Rewrite</span>
+              <button 
+                onClick={() => executeCommand("Check this scene for pacing, structure, and character voice issues. Suggest improvements.")} 
+                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-orange-500 group-hover:text-orange-400" />
+                <span className="text-xs font-medium text-zinc-300">Check Scene</span>
               </button>
-              <button className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left">
+              <button 
+                onClick={() => executeCommand("Rewrite the dialogue in this scene to be punchier and more subtextual.")}
+                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
+              >
                 <Mic2 className="w-3.5 h-3.5 text-emerald-500 group-hover:text-emerald-400" />
                 <span className="text-xs font-medium text-zinc-300">Fix Dialogue</span>
+              </button>
+              <button 
+                onClick={() => executeCommand("Suggest 3 ways to rewrite this scene to increase conflict.")}
+                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left col-span-2"
+              >
+                <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
+                <span className="text-xs font-medium text-zinc-300">Generate Alternate Versions</span>
               </button>
             </div>
           </div>

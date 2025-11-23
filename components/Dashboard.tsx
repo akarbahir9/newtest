@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv } from 'lucide-react';
+import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, PanelLeft } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Project, ProjectType, ProjectFormat } from '../types';
 
@@ -12,7 +11,7 @@ const GENRES = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { projects, navigateTo, setCurrentProject, addProject, deleteProject } = useProject();
+  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, isSidebarOpen, setSidebarOpen } = useProject();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   
@@ -76,7 +75,14 @@ const Dashboard: React.FC = () => {
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto w-full">
         <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
+            <div className="flex items-center gap-4">
+                 {!isSidebarOpen && (
+                     <button onClick={() => setSidebarOpen(true)} className="hidden md:block text-zinc-500 hover:text-zinc-200">
+                         <PanelLeft className="w-5 h-5" />
+                     </button>
+                 )}
+                 <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
+            </div>
             <button 
                 onClick={() => setShowNewProjectModal(true)}
                 className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg shadow-primary-900/20"
