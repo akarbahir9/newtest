@@ -120,9 +120,10 @@ export const generateAutocomplete = async (
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        maxOutputTokens: 60, // Increased slightly to prevent mid-word cutoff
+        maxOutputTokens: 80, // Increased to allow for longer Kurdish words
         temperature: 0.45,
-        stopSequences: ["<", "\n", "["],
+        // Removed explicit stop sequences for newlines to prevent premature cut-off
+        stopSequences: ["<"], 
       }
     });
     

@@ -278,19 +278,20 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         if (skipGhostCheck) return;
 
         // 3. Trigger Logic
+        // Robust trigger logic: Check the text immediately preceding the cursor.
+        // This is more reliable than InputEvent.data for space/punctuation detection.
+        const textBeforeCursor = getTextContext();
+        if (!textBeforeCursor) return;
+
+        const lastChar = textBeforeCursor.slice(-1);
+        const isTriggerChar = [' ', '\u00A0', '.', '?', '!', '،', '؛', '؟', '\n'].includes(lastChar);
+        
         const nativeEvent = e?.nativeEvent as InputEvent;
-        const inputData = nativeEvent?.data;
+        // Check input type to avoid triggering on deletes
+        if (nativeEvent?.inputType && nativeEvent.inputType.startsWith('delete')) return;
 
-        // Reliable Trigger: Space (normal or nbsp), Punctuation, or explicitly captured keys
-        const shouldTriggerAI = 
-            inputData === ' ' || inputData === '\u00A0' || // Space variants
-            (inputData && /^[.,;?!،؛؟]/.test(inputData)) || // Punctuation
-            lastKeyRef.current === ' ' || lastKeyRef.current === 'Space';
-
-        if (shouldTriggerAI) {
-            // IMMEDIATE TRIGGER
+        if (isTriggerChar) {
             triggerGhostAI();
-            lastKeyRef.current = null; // Reset
         }
     };
 
