@@ -111,19 +111,18 @@ export const generateAutocomplete = async (
     1. Generate the immediate next 3-10 words in Kurdish (Sorani).
     2. Maintain the tone and style of the input.
     3. Do NOT repeat the last word of the input.
-    4. Do NOT start with a space if the input already ends with one.
-    5. Return ONLY the completion text. No explanations.
-    6. If the input is dialogue (inside quotes), complete the dialogue.
-    7. If the input is action, complete the action description.
+    4. Return ONLY the completion text. No explanations.
+    5. If the input is dialogue (inside quotes), complete the dialogue.
+    6. If the input is action, complete the action description.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        maxOutputTokens: 30, // Increased slightly
-        temperature: 0.45, // Increased for creativity
-        stopSequences: ["<", "\n", "["], // Stop on new block or HTML
+        maxOutputTokens: 60, // Increased slightly to prevent mid-word cutoff
+        temperature: 0.45,
+        stopSequences: ["<", "\n", "["],
       }
     });
     
@@ -131,13 +130,16 @@ export const generateAutocomplete = async (
     
     if (!suggestion) return "";
 
-    // Cleanup quotes if model hallucinates them
+    // Cleanup quotes if model hallucinates them at the edges
     suggestion = suggestion.replace(/^["']|["']$/g, '');
     
-    // Space Handling:
-    // If the input didn't end with a space, and the suggestion doesn't start with punctuation, add a space.
-    // Added Kurdish punctuation checks (، ؛ ؟)
-    if (!suggestion.startsWith(' ') && !isTrailingSpace && !/^[.,;?!،؛؟]/.test(suggestion)) {
+    // Smart Spacing Logic:
+    // 1. If user typed space (trailing space), ensure suggestion DOES NOT start with space.
+    if (isTrailingSpace && suggestion.startsWith(' ')) {
+        suggestion = suggestion.trimStart();
+    }
+    // 2. If user did NOT type space, and suggestion is a new word (not punctuation), ensure it starts with space.
+    else if (!isTrailingSpace && !suggestion.startsWith(' ') && !/^[.,;?!،؛؟]/.test(suggestion)) {
         suggestion = ' ' + suggestion;
     }
     

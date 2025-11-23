@@ -75,13 +75,14 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     const getTextContext = () => {
         if (!pageRef.current) return '';
         const sel = window.getSelection();
-        if (!sel || !sel.rangeCount) return pageRef.current.innerText;
         
         // We want text specifically up to the cursor
         try {
             const range = document.createRange();
             range.selectNodeContents(pageRef.current);
-            range.setEnd(sel.anchorNode!, sel.anchorOffset);
+            if (sel && sel.rangeCount > 0 && sel.anchorNode && pageRef.current.contains(sel.anchorNode)) {
+                range.setEnd(sel.anchorNode, sel.anchorOffset);
+            }
             return range.toString();
         } catch (e) {
             // Fallback if selection is invalid
@@ -95,7 +96,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         // 1. Get Context
         const contextText = getTextContext();
         // Allow even short context, but ensure it exists
-        if (!contextText) return; 
+        if (!contextText || contextText.trim().length < 2) return; 
 
         // 2. Setup Versioning to prevent race conditions
         const currentVersion = ++requestVersion.current;
@@ -276,18 +277,17 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
 
         if (skipGhostCheck) return;
 
-        // 3. Trigger Logic: Spacebar
-        // Check native event data reliably
+        // 3. Trigger Logic
         const nativeEvent = e?.nativeEvent as InputEvent;
         const inputData = nativeEvent?.data;
-        const inputType = nativeEvent?.inputType;
 
-        const isSpace = 
-            inputData === ' ' || 
-            (inputType === 'insertText' && inputData === ' ') ||
-            lastKeyRef.current === ' ';
+        // Reliable Trigger: Space (normal or nbsp), Punctuation, or explicitly captured keys
+        const shouldTriggerAI = 
+            inputData === ' ' || inputData === '\u00A0' || // Space variants
+            (inputData && /^[.,;?!،؛؟]/.test(inputData)) || // Punctuation
+            lastKeyRef.current === ' ' || lastKeyRef.current === 'Space';
 
-        if (isSpace) {
+        if (shouldTriggerAI) {
             // IMMEDIATE TRIGGER
             triggerGhostAI();
             lastKeyRef.current = null; // Reset
