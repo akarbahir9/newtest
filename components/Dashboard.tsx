@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, PanelLeft } from 'lucide-react';
+import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Project, ProjectType, ProjectFormat } from '../types';
 
@@ -74,13 +74,8 @@ const Dashboard: React.FC = () => {
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto w-full">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 pl-8 md:pl-0">
             <div className="flex items-center gap-4">
-                 {!isSidebarOpen && (
-                     <button onClick={() => setSidebarOpen(true)} className="hidden md:block text-zinc-500 hover:text-zinc-200">
-                         <PanelLeft className="w-5 h-5" />
-                     </button>
-                 )}
                  <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
             </div>
             <button 

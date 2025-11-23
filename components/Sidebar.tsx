@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
-  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight, Trash2
+  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight, Trash2, PanelLeft
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { ViewType } from '../types';
@@ -52,10 +52,10 @@ const Sidebar: React.FC = () => {
         {/* Brand & Project Switcher */}
         <div className="relative"> 
             <div 
-                className="h-12 flex items-center px-4 border-b border-zinc-800/60 justify-between cursor-pointer hover:bg-zinc-900/50" 
+                className="h-12 flex items-center px-4 border-b border-zinc-800/60 justify-between" 
             >
                 <div 
-                    className="flex items-center gap-2 text-zinc-100 font-semibold tracking-tight truncate flex-1 min-w-0"
+                    className="flex items-center gap-2 text-zinc-100 font-semibold tracking-tight truncate flex-1 min-w-0 cursor-pointer hover:text-white"
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 >
                     <div className="w-5 h-5 bg-zinc-100 rounded-sm flex items-center justify-center text-zinc-950 text-xs font-bold shrink-0">Z</div>
@@ -63,6 +63,16 @@ const Sidebar: React.FC = () => {
                     <ChevronsUpDown className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                 </div>
                 
+                {/* Desktop Collapse Button */}
+                <button 
+                    className="hidden md:flex p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded transition ml-2"
+                    onClick={() => setSidebarOpen(false)}
+                    title="Collapse Sidebar"
+                >
+                    <PanelLeft className="w-4 h-4" />
+                </button>
+
+                {/* Mobile Close Button */}
                 <button 
                     className="md:hidden text-zinc-500 hover:text-zinc-200 ml-2"
                     onClick={() => setSidebarOpen(false)}

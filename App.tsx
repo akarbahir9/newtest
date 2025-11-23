@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeft, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import RightPanel from './components/RightPanel';
 import Editor from './components/Editor';
@@ -14,7 +14,7 @@ import ConfirmationModal from './components/ConfirmationModal'; // Import the mo
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
 const MainLayout: React.FC = () => {
-  const { currentView, isSidebarOpen, setSidebarOpen } = useProject();
+  const { currentView, isSidebarOpen, setSidebarOpen, isRightPanelOpen, setRightPanelOpen } = useProject();
 
   const renderView = () => {
     switch (currentView) {
@@ -54,7 +54,31 @@ const MainLayout: React.FC = () => {
 
       <Sidebar />
 
-      <div className="flex-1 flex flex-col min-w-0 relative h-full transition-all">
+      <div className="flex-1 flex flex-col min-w-0 relative h-full transition-all group/main">
+        
+        {/* Global Expand Triggers (Desktop) */}
+        {!isSidebarOpen && (
+          <button 
+            onClick={() => setSidebarOpen(true)}
+            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-50 p-2 bg-zinc-900 border-y border-r border-zinc-800 rounded-r-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shadow-xl transition-all items-center gap-2 group h-12 -ml-1 hover:ml-0"
+            title="Expand Sidebar"
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <PanelLeft className="w-4 h-4" />
+          </button>
+        )}
+
+        {!isRightPanelOpen && (
+          <button 
+            onClick={() => setRightPanelOpen(true)}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-50 p-2 bg-zinc-900 border-y border-l border-zinc-800 rounded-l-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 shadow-xl transition-all items-center gap-2 group h-12 -mr-1 hover:mr-0"
+            title="Expand AI Assistant"
+          >
+            <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Sparkles className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Mobile Header */}
         <div className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 flex items-center px-4 bg-zinc-950 justify-between z-30">
             <div className="flex items-center gap-3">

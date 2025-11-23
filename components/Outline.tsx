@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Film, Edit3, ArrowRight, Plus, Tv, Edit2, Save, ChevronDown, ChevronRight, Trash2, PanelLeft } from 'lucide-react';
+import { Film, Edit3, ArrowRight, Plus, Tv, Edit2, Save, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const Outline: React.FC = () => {
@@ -91,13 +91,8 @@ const Outline: React.FC = () => {
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative bg-zinc-950">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
+        <div className="flex justify-between items-end mb-8 pl-8 md:pl-0">
           <div className="flex items-center gap-4">
-             {!isSidebarOpen && (
-                 <button onClick={() => setSidebarOpen(true)} className="hidden md:block text-zinc-500 hover:text-zinc-200">
-                     <PanelLeft className="w-5 h-5" />
-                 </button>
-             )}
              <div>
                 <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Outline</h1>
                 <p className="text-sm text-zinc-500 mt-1">{currentProject.title} ({currentProject.type})</p>

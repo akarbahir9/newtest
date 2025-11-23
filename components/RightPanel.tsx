@@ -2,14 +2,94 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, Bot, AlertTriangle, PenTool, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace
+  FileCheck, Replace, PanelRight
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { useProject } from '../context/ProjectContext';
 
+// --- Markdown Parser Helper ---
+const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
+  const parseInline = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const inner = part.slice(2, -2);
+        // Heuristic: If it ends with ':' it's likely a key/label for data
+        const isKey = inner.trim().endsWith(':');
+        return (
+            <strong 
+                key={index} 
+                className={`font-semibold ${isKey ? 'text-emerald-400' : 'text-zinc-100'}`}
+            >
+                {inner}
+            </strong>
+        );
+      }
+      return part;
+    });
+  };
+
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: React.ReactNode[] = [];
+
+  const flushList = (keyPrefix: string) => {
+    if (currentList.length > 0) {
+        elements.push(
+            <ul key={`${keyPrefix}-ul`} className="mb-4 space-y-1.5 pl-1 text-zinc-300">
+                {currentList}
+            </ul>
+        );
+        currentList = [];
+    }
+  };
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    const listMatch = line.match(/^\s*[\-\*]\s+(.*)/);
+    
+    if (listMatch) {
+      const itemContent = parseInline(listMatch[1]);
+      currentList.push(
+        <li key={`li-${i}`} className="flex items-start gap-2.5 text-xs leading-relaxed">
+           <span className="mt-1.5 w-1.5 h-1.5 bg-indigo-500 rounded-full flex-shrink-0 block shadow-[0_0_6px_rgba(99,102,241,0.5)]"></span>
+           <span>{itemContent}</span>
+        </li>
+      );
+    } else {
+      flushList(`pre-${i}`);
+      
+      if (trimmed === '') return; // Skip empty lines
+
+      if (line.startsWith('###')) {
+         const text = line.replace(/^###\s*/, '');
+         elements.push(
+            <h3 key={`h3-${i}`} className="text-xs font-bold text-indigo-400 mt-5 mb-3 uppercase tracking-wider flex items-center gap-3 after:h-px after:bg-zinc-800 after:flex-1">
+                {parseInline(text)}
+            </h3>
+         );
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+         // Standalone bold line -> Subheader / Categorization
+         const text = line.replace(/\*\*/g, '');
+         elements.push(
+             <div key={`sh-${i}`} className="mt-4 mb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-emerald-500/50 pl-2">
+                 {parseInline(text)}
+             </div>
+         );
+      } else {
+         elements.push(<p key={`p-${i}`} className="mb-2.5 text-zinc-300 leading-relaxed">{parseInline(line)}</p>);
+      }
+    }
+  });
+  
+  flushList('end');
+
+  return <div className="text-xs font-sans">{elements}</div>;
+};
+
 const RightPanel: React.FC = () => {
-  const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, showConfirmation } = useProject();
+  const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, setRightPanelOpen, showConfirmation } = useProject();
   const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
   
   // Chat State
@@ -38,14 +118,12 @@ const RightPanel: React.FC = () => {
               return `${r.type} of ${target} (${r.description})`;
           }).join(', ');
           
-          return `${c.name} (${c.role}, ${c.archetype}): ${c.description}. Traits: [${c.traits.join(', ')}]. ${rels ? `Relationships: ${rels}` : ''}`;
+          return `* ${c.name} (${c.role}, ${c.archetype}): ${c.description}. Traits: [${c.traits.join(', ')}]. ${rels ? `Relationships: ${rels}` : ''}`;
       }).join('\n');
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
 
       // Compile full script content for memory
-      // We strip heavy HTML tags to keep token count reasonable but preserve text structure
-      // Also ensuring we don't send undefined values
       const fullScriptHistory = currentProject?.scenes
         .sort((a, b) => a.number - b.number)
         .map(s => {
@@ -113,6 +191,40 @@ const RightPanel: React.FC = () => {
       }
   };
 
+  const handleQuickAction = (type: 'check' | 'fix' | 'alternates') => {
+      // IMPORTANT: window.getSelection() works because we preventDefault onMouseDown of the button
+      const selection = window.getSelection()?.toString().trim();
+      let prompt = "";
+
+      if (selection && selection.length > 0) {
+          switch (type) {
+              case 'check':
+                  prompt = `Analyze ONLY the following selected text for pacing, subtext, and impact. Provide specific feedback.\n\nSELECTED TEXT:\n"${selection}"`;
+                  break;
+              case 'fix':
+                  prompt = `Rewrite ONLY the selected text below to be punchier and more subtextual. Return ONLY the rewritten segment wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
+                  break;
+              case 'alternates':
+                  prompt = `Generate 3 distinct alternate versions of ONLY the selected text below. Return them wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
+                  break;
+          }
+      } else {
+          switch (type) {
+              case 'check':
+                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements. Use bold headers for categories.";
+                  break;
+              case 'fix':
+                  prompt = "Rewrite the dialogue in this entire scene to be punchier and more subtextual. Wrap the result in <screenplay> tags.";
+                  break;
+              case 'alternates':
+                  prompt = "Suggest 3 ways to rewrite this scene to increase conflict.";
+                  break;
+          }
+      }
+      
+      executeCommand(prompt);
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const cmd = input;
@@ -122,13 +234,10 @@ const RightPanel: React.FC = () => {
 
   const handleInsert = (contentToInsert: string) => {
       if (!scene || !contentToInsert) return;
-      // Strip outer screenplay tags if they exist for clean insertion
       const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
       
-      // If it's plain text suggest, wrap it in action if needed, or just append
       let finalContent = scene.content;
       
-      // Basic append logic - editor handles the formatting render
       if (!cleanContent.startsWith('<div') && !cleanContent.startsWith('<p')) {
           if (currentProject?.type === 'Novel') {
               finalContent += `<p>${cleanContent}</p>`;
@@ -158,7 +267,6 @@ const RightPanel: React.FC = () => {
     }
   };
 
-  // Helper to parse message content and render screenplay cards
   const renderMessageContent = (text: string) => {
     const parts = text.split(/(<screenplay>[\s\S]*?<\/screenplay>)/g);
     return parts.map((part, index) => {
@@ -194,8 +302,8 @@ const RightPanel: React.FC = () => {
         );
       } else if (part.trim().length > 0) {
         return (
-          <div key={index} className="whitespace-pre-wrap leading-relaxed text-zinc-300 select-text">
-            {part.trim()}
+          <div key={index} className="select-text">
+            <MarkdownRenderer content={part.trim()} />
           </div>
         );
       }
@@ -213,8 +321,8 @@ const RightPanel: React.FC = () => {
         `}
     >
         
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-800 relative">
+      {/* Tabs with Close Button */}
+      <div className="flex border-b border-zinc-800 relative items-center flex-shrink-0">
         <button 
           onClick={() => setActiveTab('assistant')} 
           className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'assistant' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
@@ -227,103 +335,116 @@ const RightPanel: React.FC = () => {
         >
           Visuals
         </button>
+        <button 
+            onClick={() => setRightPanelOpen(false)} 
+            className="p-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition border-l border-zinc-800"
+            title="Collapse Panel"
+        >
+            <PanelRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* CONTENT: ASSISTANT */}
       {activeTab === 'assistant' && (
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
-          {/* Current Context Card */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xxs font-semibold text-zinc-500 uppercase">Active Context</span>
-              <span className="text-xxs text-emerald-500 flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> Live</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">SC {scene?.number || '?' }</span>
-              {currentProject?.characters.slice(0, 2).map(c => (
-                <span key={c.id} className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">{c.name}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Chat */}
-          <div className="space-y-4">
-            {messages.map((msg) => (
-              <div key={msg.id} className="flex gap-3">
-                {msg.role === 'user' ? (
-                  <div className="w-6 h-6 rounded-full bg-zinc-700 flex-shrink-0 flex items-center justify-center text-xxs text-zinc-300">E</div>
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
-                )}
-                
-                <div className="space-y-1 w-full min-w-0">
-                  <div className={`text-xs ${msg.role === 'user' ? 'text-zinc-400' : 'text-primary-400 font-medium'}`}>
-                    {msg.role === 'user' ? 'Elena R.' : 'Zoer Assistant'}
-                  </div>
-                  
-                  {msg.role === 'user' ? (
-                     <div className="text-sm text-zinc-300 bg-zinc-800/50 p-2 rounded-lg inline-block">{msg.text}</div>
-                  ) : (
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs leading-relaxed group relative">
-                      {msg.hasContradiction && (
-                        <div className="flex items-start gap-2 mb-2 text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
-                          <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
-                          <div>
-                            <span className="font-medium block mb-0.5">Contradiction Detected</span>
-                            <span className="opacity-80">In Scene 001, Aria broke her <span className="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {renderMessageContent(msg.text)}
-                      
+        <>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+                {/* Current Context Card */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                    <span className="text-xxs font-semibold text-zinc-500 uppercase">Active Context</span>
+                    <span className="text-xxs text-emerald-500 flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> Live</span>
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-1.5">
+                    <span className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">SC {scene?.number || '?' }</span>
+                    {currentProject?.characters.slice(0, 2).map(c => (
+                        <span key={c.id} className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">{c.name}</span>
+                    ))}
+                    </div>
                 </div>
-              </div>
-            ))}
-             {isChatLoading && (
-                <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
-                  <div className="space-y-2 w-full">
-                    <div className="text-xs text-primary-400 font-medium">Zoer Assistant</div>
-                     <div className="text-xs text-zinc-500 animate-pulse">Thinking...</div>
-                  </div>
-                </div>
-             )}
-             <div ref={messagesEndRef} />
-          </div>
 
-          <div className="my-2 border-t border-zinc-800"></div>
-          
-          {/* Quick Actions */}
-          <div>
-            <div className="text-xxs font-semibold text-zinc-500 uppercase mb-3 tracking-wider">Quick Actions</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => executeCommand("Check this scene for pacing, structure, and character voice issues. Suggest improvements.")} 
-                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
-              >
-                <FileCheck className="w-3.5 h-3.5 text-orange-500 group-hover:text-orange-400" />
-                <span className="text-xs font-medium text-zinc-300">Check Scene</span>
-              </button>
-              <button 
-                onClick={() => executeCommand("Rewrite the dialogue in this scene to be punchier and more subtextual.")}
-                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
-              >
-                <Mic2 className="w-3.5 h-3.5 text-emerald-500 group-hover:text-emerald-400" />
-                <span className="text-xs font-medium text-zinc-300">Fix Dialogue</span>
-              </button>
-              <button 
-                onClick={() => executeCommand("Suggest 3 ways to rewrite this scene to increase conflict.")}
-                className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left col-span-2"
-              >
-                <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
-                <span className="text-xs font-medium text-zinc-300">Generate Alternate Versions</span>
-              </button>
+                {/* Chat */}
+                <div className="space-y-4">
+                    {messages.map((msg) => (
+                    <div key={msg.id} className="flex gap-3">
+                        {msg.role === 'user' ? (
+                        <div className="w-6 h-6 rounded-full bg-zinc-700 flex-shrink-0 flex items-center justify-center text-xxs text-zinc-300">E</div>
+                        ) : (
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
+                        )}
+                        
+                        <div className="space-y-1 w-full min-w-0">
+                        <div className={`text-xs ${msg.role === 'user' ? 'text-zinc-400' : 'text-primary-400 font-medium'}`}>
+                            {msg.role === 'user' ? 'Elena R.' : 'Zoer Assistant'}
+                        </div>
+                        
+                        {msg.role === 'user' ? (
+                            <div className="text-sm text-zinc-300 bg-zinc-800/50 p-2 rounded-lg inline-block">{msg.text}</div>
+                        ) : (
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative shadow-sm">
+                            {msg.hasContradiction && (
+                                <div className="flex items-start gap-2 mb-2 text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
+                                <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
+                                <div>
+                                    <span className="font-medium block mb-0.5">Contradiction Detected</span>
+                                    <span className="opacity-80">In Scene 001, Aria broke her <span className="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
+                                </div>
+                                </div>
+                            )}
+                            
+                            {renderMessageContent(msg.text)}
+                            
+                            </div>
+                        )}
+                        </div>
+                    </div>
+                    ))}
+                    {isChatLoading && (
+                        <div className="flex gap-3">
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
+                        <div className="space-y-2 w-full">
+                            <div className="text-xs text-primary-400 font-medium">Zoer Assistant</div>
+                            <div className="text-xs text-zinc-500 animate-pulse">Thinking...</div>
+                        </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
             </div>
-          </div>
-        </div>
+
+            {/* Quick Actions - Fixed Area */}
+            <div className="p-3 border-t border-zinc-800/50 bg-zinc-925 flex-shrink-0 z-10">
+                <div className="text-xxs font-semibold text-zinc-500 uppercase mb-2 tracking-wider">Quick Actions</div>
+                <div className="grid grid-cols-2 gap-2">
+                    <button 
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleQuickAction('check')}
+                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
+                        title="Analyzes scene or selected text"
+                    >
+                        <FileCheck className="w-3.5 h-3.5 text-orange-500 group-hover:text-orange-400" />
+                        <span className="text-xs font-medium text-zinc-300">Check Selection/Scene</span>
+                    </button>
+                    <button 
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleQuickAction('fix')}
+                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
+                        title="Rewrites selected dialogue or scene dialogue"
+                    >
+                        <Mic2 className="w-3.5 h-3.5 text-emerald-500 group-hover:text-emerald-400" />
+                        <span className="text-xs font-medium text-zinc-300">Fix Dialogue</span>
+                    </button>
+                    <button 
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleQuickAction('alternates')}
+                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left col-span-2"
+                        title="Generates variations of selected text or scene"
+                    >
+                        <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
+                        <span className="text-xs font-medium text-zinc-300">Generate Alternate Versions</span>
+                    </button>
+                </div>
+            </div>
+        </>
       )}
 
       {/* CONTENT: VISUALS */}

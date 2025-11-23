@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { Film, LayoutTemplate, Undo, Redo, PanelLeft, ZoomIn, ZoomOut } from 'lucide-react';
+import { Film, Undo, Redo, ZoomIn, ZoomOut } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { generateAutocomplete } from '../services/geminiService';
 
@@ -571,15 +571,7 @@ const Editor: React.FC = () => {
     <div className="view-section active flex-1 flex flex-col h-full bg-zinc-950 relative overflow-hidden">
         <header className="h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 flex-shrink-0 gap-2 shadow-sm">
             <div className="flex items-center gap-2 overflow-hidden">
-                <button 
-                    onClick={() => setSidebarOpen(!isSidebarOpen)} 
-                    className={`p-1.5 rounded hover:bg-zinc-800 text-zinc-500 transition hidden md:block ${isSidebarOpen ? '' : 'text-zinc-200'}`}
-                    title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-                >
-                    <PanelLeft className="w-4 h-4" />
-                </button>
-
-                <span onClick={() => navigateTo('dashboard')} className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition whitespace-nowrap hidden sm:inline">Projects</span>
+                <span onClick={() => navigateTo('dashboard')} className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition whitespace-nowrap hidden sm:inline ml-8 md:ml-0">Projects</span>
                 <span className="text-zinc-600 text-xs hidden sm:inline">/</span>
                 <span className="text-xs font-medium text-zinc-200 flex items-center gap-2 truncate">
                     <Film className="w-3 h-3 text-zinc-500 flex-shrink-0" />
@@ -616,10 +608,8 @@ const Editor: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-shrink-0">
-                <button onClick={() => setRightPanelOpen(!isRightPanelOpen)} className={`p-1.5 rounded hover:bg-zinc-800 text-zinc-500 transition ${isRightPanelOpen ? 'text-primary-400 bg-zinc-900' : ''}`}>
-                    <LayoutTemplate className="w-4 h-4" />
-                </button>
+            <div className="flex items-center gap-3 flex-shrink-0 w-8 md:w-0">
+               {/* Spacer to balance the hidden panel trigger on the right */}
             </div>
         </header>
 

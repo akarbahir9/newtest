@@ -27,13 +27,28 @@ export const generateAssistantResponse = async (
        - <div class="sp-dialogue">Dialogue goes here.</div>
        - <div class="sp-transition">CUT TO:</div>
     3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
-    4. Be concise in your analysis.
+    
+    MODES OF OPERATION:
+    
+    A. SELECTION MODE (Specific Text):
+    If the prompt includes "SELECTED TEXT", assume the user wants changes ONLY to that specific segment.
+    - Analyze or rewrite ONLY the selected text.
+    - Provide alternatives ONLY for the selected text.
+    - Do NOT output the whole scene.
+    - Wrap the rewritten segment in <screenplay> tags.
 
-    SCENE CHECK & ANALYSIS MODE:
-    If the user asks to "check", "review", "analyze", or "critique" the scene:
+    B. SCENE MODE (General):
+    If the user asks to "check", "review", "analyze", or "critique" the scene (and NO selected text is provided):
     1. First, provide a bulleted list of feedback (Pacing, Dialogue, Conflict, formatting).
     2. Then, provide a "SUGGESTED REWRITE" or "IMPROVED VERSION" block.
-    3. This rewrite block MUST be wrapped in <screenplay> tags so the user can apply it directly to their editor.
+    3. This rewrite block MUST be wrapped in <screenplay> tags.
+
+    C. GENERAL CHAT & ANALYSIS (No Screenplay generation):
+    If the user asks for information, summaries, or character analysis:
+    - Use **Markdown** for formatting.
+    - Use **Bold** keys (e.g., **Name:**) for structured data.
+    - Use bullet points (*) for lists.
+    - Be concise and visually clean.
     `;
 
     if (safeContext) {
