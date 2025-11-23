@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
-  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight
+  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight, Trash2
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { ViewType } from '../types';
@@ -10,7 +9,7 @@ import { ViewType } from '../types';
 const Sidebar: React.FC = () => {
   const { 
     currentView, navigateTo, projects, currentProject, 
-    setCurrentProject, setCurrentSceneId, currentSceneId, addScene,
+    setCurrentProject, setCurrentSceneId, currentSceneId, addScene, deleteScene, showConfirmation,
     isSidebarOpen, setSidebarOpen, addEpisode
   } = useProject();
   
@@ -29,6 +28,13 @@ const Sidebar: React.FC = () => {
 
   const isNovel = currentProject?.type === 'Novel';
   const isSerial = currentProject?.type === 'Serial';
+
+  const handleDeleteScene = (e: React.MouseEvent, sceneId: string, sceneTitle: string) => {
+      e.stopPropagation();
+      showConfirmation(`Are you sure you want to delete "${sceneTitle || 'Untitled'}"?`, () => {
+          deleteScene(sceneId);
+      });
+  };
 
   return (
     <aside 
@@ -53,7 +59,6 @@ const Sidebar: React.FC = () => {
                 <ChevronsUpDown className="w-4 h-4 text-zinc-500 flex-shrink-0" />
             </div>
             
-            {/* Close Button (Mobile Only) */}
             <button 
                 className="md:hidden text-zinc-500 hover:text-zinc-200 ml-2"
                 onClick={() => setSidebarOpen(false)}
@@ -62,7 +67,6 @@ const Sidebar: React.FC = () => {
             </button>
         </div>
         
-        {/* Project Dropdown */}
         {isDropdownOpen && (
             <div className="absolute top-full left-0 w-full bg-zinc-900 border border-zinc-800 shadow-xl rounded-b-md py-1 z-50">
                 {projects.map(p => (
@@ -114,7 +118,6 @@ const Sidebar: React.FC = () => {
             )}
             </div>
             
-            {/* Project Item */}
             <div className="group">
             <div onClick={() => setIsProjectOpen(!isProjectOpen)} className="flex items-center gap-2 px-2 py-1.5 text-zinc-200 rounded text-xs font-medium cursor-pointer hover:bg-zinc-800/30">
                 <FolderOpen className={`w-3.5 h-3.5 text-primary-500 transition-transform ${isProjectOpen ? 'rotate-90' : ''}`} /> 
@@ -134,7 +137,6 @@ const Sidebar: React.FC = () => {
                 </div>
                 <div className="mt-2 pt-2 border-t border-zinc-800/50">
                     {isSerial ? (
-                        // --- SERIAL RENDERER (Episodes -> Scenes) ---
                         <div>
                             {currentProject.episodes?.map(ep => {
                                 const epScenes = currentProject.scenes.filter(s => s.episodeId === ep.id);
@@ -154,8 +156,9 @@ const Sidebar: React.FC = () => {
                                         {isExpanded && (
                                             <div className="pl-3 border-l border-zinc-800/50 ml-2 mt-0.5 space-y-0.5">
                                                 {epScenes.map(scene => (
-                                                    <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                                    <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`group/scene flex items-center justify-between gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-500 hover:text-zinc-300'}`}>
                                                         <span className="truncate">{scene.title || 'Untitled Scene'}</span>
+                                                        <Trash2 onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="w-3 h-3 text-zinc-600 hover:text-red-500 opacity-0 group-hover/scene:opacity-100 flex-shrink-0" />
                                                     </div>
                                                 ))}
                                                 {epScenes.length === 0 && <div className="text-[10px] text-zinc-600 px-2 italic">No scenes</div>}
@@ -166,16 +169,18 @@ const Sidebar: React.FC = () => {
                             })}
                         </div>
                     ) : (
-                        // --- STANDARD RENDERER (Flat Scenes) ---
                         <>
                             <div className="px-2 text-xxs text-zinc-600 mb-1 flex justify-between">
                                 {isNovel ? 'CHAPTERS' : 'SCENES'}
                                 <FilePlus className="w-3 h-3 cursor-pointer hover:text-primary-400" onClick={(e) => { e.stopPropagation(); addScene(); }} />
                             </div>
                             {currentProject.scenes.map((scene) => (
-                                <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id && currentView === 'editor' ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'}`}>
-                                    <span className={`font-mono text-xxs w-4 ${currentSceneId === scene.id ? 'text-primary-500' : 'text-zinc-600'}`}>{String(scene.number).padStart(3, '0')}</span> 
-                                    <span className="truncate">{scene.title || 'UNTITLED'}</span>
+                                <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`group/scene flex items-center justify-between gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id && currentView === 'editor' ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'}`}>
+                                    <div className="flex items-center gap-2 truncate">
+                                      <span className={`font-mono text-xxs w-4 ${currentSceneId === scene.id ? 'text-primary-500' : 'text-zinc-600'}`}>{String(scene.number).padStart(3, '0')}</span> 
+                                      <span className="truncate">{scene.title || 'UNTITLED'}</span>
+                                    </div>
+                                    <Trash2 onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="w-3 h-3 text-zinc-600 hover:text-red-500 opacity-0 group-hover/scene:opacity-100 flex-shrink-0" />
                                 </div>
                             ))}
                         </>
@@ -189,13 +194,6 @@ const Sidebar: React.FC = () => {
 
       {/* Bottom: Usage & Profile */}
       <div className="p-3 border-t border-zinc-800/60 bg-zinc-950/30">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xxs text-zinc-500">AI Tokens</span>
-          <span className="text-xxs text-zinc-400 font-mono">450/1000</span>
-        </div>
-        <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden mb-3">
-          <div className="h-full bg-gradient-to-r from-primary-600 to-primary-500 w-[45%]"></div>
-        </div>
         <div onClick={() => navigateTo('settings')} className="flex items-center gap-2 cursor-pointer group">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-xxs text-white border border-zinc-600">EL</div>
           <div className="flex flex-col">

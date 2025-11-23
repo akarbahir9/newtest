@@ -1,23 +1,20 @@
 import React, { useState } from 'react';
-import { Film, Edit3, ArrowRight, Plus, Tv, Edit2, Save, ChevronDown, ChevronRight } from 'lucide-react';
+import { Film, Edit3, ArrowRight, Plus, Tv, Edit2, Save, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const Outline: React.FC = () => {
-  const { currentProject, navigateTo, setCurrentSceneId, updateSceneSummary, addScene, addEpisode, updateEpisode } = useProject();
+  const { currentProject, navigateTo, setCurrentSceneId, updateSceneSummary, addScene, deleteScene, showConfirmation, addEpisode, updateEpisode } = useProject();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempSummary, setTempSummary] = useState('');
   
-  // Episode Editing
   const [editingEpId, setEditingEpId] = useState<string | null>(null);
   const [tempEpTitle, setTempEpTitle] = useState('');
   
-  // State for scene visibility
   const [expandedEpisodes, setExpandedEpisodes] = useState<Record<string, boolean>>({});
 
   const toggleEpisode = (epId: string) => {
     setExpandedEpisodes(prev => ({ ...prev, [epId]: !prev[epId] }));
   };
-
 
   if (!currentProject) return <div className="p-8 text-zinc-500">Please select a project.</div>;
 
@@ -38,7 +35,12 @@ const Outline: React.FC = () => {
       setEditingEpId(null);
   };
 
-  // Helper to render list of scenes
+  const handleDeleteScene = (sceneId: string, sceneTitle: string) => {
+    showConfirmation(`Are you sure you want to delete "${sceneTitle || 'Untitled'}"?`, () => {
+        deleteScene(sceneId);
+    });
+  };
+
   const renderScenes = (scenes: any[]) => (
       <div className="space-y-4 relative">
         <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-zinc-800 z-0 hidden md:block"></div>
@@ -55,9 +57,14 @@ const Outline: React.FC = () => {
                             <span className="md:hidden text-xs font-mono font-bold text-zinc-500">#{scene.number}</span>
                             <h3 className="text-sm font-medium text-zinc-200">{scene.title || 'UNTITLED SCENE'}</h3>
                         </div>
-                        <button onClick={() => { setCurrentSceneId(scene.id); navigateTo('editor'); }} className="text-xs flex items-center gap-1 text-primary-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition">
-                            Edit Script <ArrowRight className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                            <button onClick={() => handleDeleteScene(scene.id, scene.title)} className="text-red-500 hover:text-red-400">
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => { setCurrentSceneId(scene.id); navigateTo('editor'); }} className="text-xs flex items-center gap-1 text-primary-500 hover:text-primary-400">
+                                Edit Script <ArrowRight className="w-3 h-3" />
+                            </button>
+                        </div>
                     </div>
                     <div className="mt-2">
                         {editingId === scene.id ? (
@@ -103,11 +110,10 @@ const Outline: React.FC = () => {
           </div>
         </div>
 
-        {/* Serial Layout vs Standard Layout */}
         {isSerial ? (
             <div className="space-y-8">
                 {currentProject.episodes?.map(ep => {
-                    const isExpanded = expandedEpisodes[ep.id] !== false; // Default to expanded
+                    const isExpanded = expandedEpisodes[ep.id] !== false; 
                     return (
                         <div key={ep.id} className="bg-zinc-950/50 border border-zinc-800/50 rounded-xl p-4">
                             <div 

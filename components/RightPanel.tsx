@@ -1,16 +1,18 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, Bot, AlertTriangle, PenTool, Mic2, 
-  BrainCircuit, Image, Mic, ArrowUp, X, FileInput, Copy
+  BrainCircuit, Image, Mic, ArrowUp, X, FileInput, Copy,
+  Lightbulb, RefreshCw, Zap, Sparkles, List
 } from 'lucide-react';
-import { generateAssistantResponse } from '../services/geminiService';
+import { generateAssistantResponse, generateStructuredSuggestions } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { useProject } from '../context/ProjectContext';
 
 const RightPanel: React.FC = () => {
   const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, setRightPanelOpen } = useProject();
-  const [activeTab, setActiveTab] = useState<'assistant' | 'memory' | 'visuals'>('assistant');
+  const [activeTab, setActiveTab] = useState<'assistant' | 'suggestions' | 'memory' | 'visuals'>('assistant');
+  
+  // Chat State
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: '1', role: 'user', text: 'Check continuity for Aria\'s injury.' },
@@ -21,25 +23,20 @@ const RightPanel: React.FC = () => {
       hasContradiction: true 
     }
   ]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Suggestions State
+  const [suggestions, setSuggestions] = useState<any>(null);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
 
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isChatLoading]);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      // Build Deep Context including Relations and Project Metadata
+  const buildDeepContext = () => {
       const charDetails = currentProject?.characters.map(c => {
           const rels = c.relationships?.map(r => {
               const target = currentProject.characters.find(tc => tc.id === r.targetId)?.name || 'Unknown';
@@ -51,8 +48,9 @@ const RightPanel: React.FC = () => {
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
 
-      const contextString = `
+      return `
         Project: ${currentProject?.title}
+        Type: ${currentProject?.type} (${currentProject?.format || 'Standard'})
         Genres: ${genreString}
         Logline: ${currentProject?.logline || 'N/A'}
         Theme: ${currentProject?.theme || 'N/A'}
@@ -65,7 +63,18 @@ const RightPanel: React.FC = () => {
         Current Scene: ${scene?.title}
         Scene Content: ${scene?.content.replace(/<[^>]*>?/gm, '')}
       `;
+  };
 
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsChatLoading(true);
+
+    try {
+      const contextString = buildDeepContext();
       const history = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
@@ -82,16 +91,45 @@ const RightPanel: React.FC = () => {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      setIsChatLoading(false);
     }
+  };
+
+  const handleGenerateSuggestions = async () => {
+      setIsSuggestionsLoading(true);
+      try {
+          const context = buildDeepContext();
+          const data = await generateStructuredSuggestions(context);
+          setSuggestions(data);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsSuggestionsLoading(false);
+      }
   };
 
   const handleInsert = (contentToInsert: string) => {
       if (!scene || !contentToInsert) return;
       // Strip outer screenplay tags if they exist for clean insertion
       const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
-      const newContent = scene.content + cleanContent;
-      updateSceneContent(scene.id, newContent);
+      
+      // If it's plain text suggest, wrap it in action if needed, or just append
+      // For the Editor to detect it as append, we just pass it. 
+      // Editor logic handles the rest.
+      let finalContent = scene.content;
+      
+      if (!cleanContent.startsWith('<div') && !cleanContent.startsWith('<p')) {
+          // It's likely raw text from a suggestion
+          if (currentProject?.type === 'Novel') {
+              finalContent += `<p>${cleanContent}</p>`;
+          } else {
+              finalContent += `<div class="sp-action">${cleanContent}</div>`;
+          }
+      } else {
+          finalContent += cleanContent;
+      }
+
+      updateSceneContent(scene.id, finalContent);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -103,16 +141,12 @@ const RightPanel: React.FC = () => {
 
   // Helper to parse message content and render screenplay cards
   const renderMessageContent = (text: string) => {
-    // Split by screenplay tags
     const parts = text.split(/(<screenplay>[\s\S]*?<\/screenplay>)/g);
-    
     return parts.map((part, index) => {
       if (part.startsWith('<screenplay>')) {
-        // Extract content inside tags
         const content = part.replace(/<\/?screenplay>/g, '').trim();
         return (
           <div key={index} className="my-3 relative group">
-             {/* Hollywood Card */}
              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden">
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition z-10">
                     <button 
@@ -124,7 +158,6 @@ const RightPanel: React.FC = () => {
                         <span className="text-[10px] font-medium">Insert</span>
                     </button>
                 </div>
-                {/* Render HTML content safely */}
                 <div 
                     className="font-screenplay text-xs text-zinc-300 leading-relaxed pointer-events-none select-none"
                     dangerouslySetInnerHTML={{ __html: content }}
@@ -133,7 +166,6 @@ const RightPanel: React.FC = () => {
           </div>
         );
       } else if (part.trim().length > 0) {
-        // Regular text
         return (
           <div key={index} className="whitespace-pre-wrap leading-relaxed text-zinc-300">
             {part.trim()}
@@ -163,6 +195,12 @@ const RightPanel: React.FC = () => {
           Assistant
         </button>
         <button 
+          onClick={() => { setActiveTab('suggestions'); if(!suggestions) handleGenerateSuggestions(); }} 
+          className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'suggestions' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
+        >
+          Suggestions
+        </button>
+        <button 
           onClick={() => setActiveTab('memory')} 
           className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'memory' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
         >
@@ -174,9 +212,104 @@ const RightPanel: React.FC = () => {
         >
           Visuals
         </button>
-        
-        {/* Close Button REMOVED per user request */}
       </div>
+
+      {/* CONTENT: SUGGESTIONS */}
+      {activeTab === 'suggestions' && (
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+              <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">AI Analysis</h3>
+                  <button 
+                    onClick={handleGenerateSuggestions} 
+                    disabled={isSuggestionsLoading}
+                    className="text-xs flex items-center gap-1 text-primary-400 hover:text-primary-300 transition"
+                  >
+                      <RefreshCw className={`w-3 h-3 ${isSuggestionsLoading ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+              </div>
+
+              {isSuggestionsLoading && !suggestions && (
+                  <div className="text-center py-10">
+                      <Sparkles className="w-8 h-8 text-primary-500/50 mx-auto mb-3 animate-pulse" />
+                      <p className="text-xs text-zinc-500">Analyzing story context...</p>
+                  </div>
+              )}
+
+              {!isSuggestionsLoading && suggestions && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                      {/* Complication Card */}
+                      {suggestions.complication && (
+                          <div className="bg-gradient-to-br from-amber-900/20 to-zinc-900 border border-amber-500/30 rounded-lg p-4 relative group">
+                              <div className="flex items-center gap-2 mb-2 text-amber-500">
+                                  <Zap className="w-4 h-4" />
+                                  <span className="text-xs font-bold uppercase tracking-wide">Suggested Complication</span>
+                              </div>
+                              <p className="text-sm text-zinc-200 leading-relaxed italic">
+                                  "{suggestions.complication}"
+                              </p>
+                              <button 
+                                onClick={() => handleInsert(suggestions.complication)}
+                                className="mt-3 w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs rounded transition flex items-center justify-center gap-2"
+                              >
+                                  <FileInput className="w-3 h-3" /> Insert Twist
+                              </button>
+                          </div>
+                      )}
+
+                      {/* Plot Suggestions */}
+                      <div>
+                          <h4 className="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-2">
+                              <List className="w-3 h-3" /> Plot & Structure
+                          </h4>
+                          <div className="space-y-2">
+                              {suggestions.plot?.map((s: string, i: number) => (
+                                  <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-md hover:border-zinc-700 transition group">
+                                      <p className="text-xs text-zinc-300 mb-2">{s}</p>
+                                      <button onClick={() => handleInsert(s)} className="text-[10px] text-primary-400 hover:text-primary-300 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                          <FileInput className="w-2.5 h-2.5" /> Insert
+                                      </button>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+
+                      {/* Character Suggestions */}
+                      <div>
+                          <h4 className="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-2">
+                              <Bot className="w-3 h-3" /> Character Beats
+                          </h4>
+                          <div className="space-y-2">
+                              {suggestions.character?.map((s: string, i: number) => (
+                                  <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-md hover:border-zinc-700 transition group">
+                                      <p className="text-xs text-zinc-300 mb-2">{s}</p>
+                                      <button onClick={() => handleInsert(s)} className="text-[10px] text-primary-400 hover:text-primary-300 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                          <FileInput className="w-2.5 h-2.5" /> Insert
+                                      </button>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+
+                      {/* World Suggestions */}
+                      <div>
+                          <h4 className="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-2">
+                              <Wifi className="w-3 h-3" /> Worldbuilding
+                          </h4>
+                          <div className="space-y-2">
+                              {suggestions.world?.map((s: string, i: number) => (
+                                  <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-md hover:border-zinc-700 transition group">
+                                      <p className="text-xs text-zinc-300 mb-2">{s}</p>
+                                      <button onClick={() => handleInsert(s)} className="text-[10px] text-primary-400 hover:text-primary-300 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                          <FileInput className="w-2.5 h-2.5" /> Insert
+                                      </button>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+              )}
+          </div>
+      )}
 
       {/* CONTENT: ASSISTANT */}
       {activeTab === 'assistant' && (
@@ -224,7 +357,6 @@ const RightPanel: React.FC = () => {
                         </div>
                       )}
                       
-                      {/* Render Parsed Content */}
                       {renderMessageContent(msg.text)}
                       
                     </div>
@@ -232,7 +364,7 @@ const RightPanel: React.FC = () => {
                 </div>
               </div>
             ))}
-             {isLoading && (
+             {isChatLoading && (
                 <div className="flex gap-3">
                   <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
                   <div className="space-y-2 w-full">
@@ -246,17 +378,17 @@ const RightPanel: React.FC = () => {
 
           <div className="my-2 border-t border-zinc-800"></div>
           
-          {/* Prompt Template Library */}
+          {/* Quick Actions */}
           <div>
             <div className="text-xxs font-semibold text-zinc-500 uppercase mb-3 tracking-wider">Quick Actions</div>
             <div className="grid grid-cols-2 gap-2">
               <button className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left">
                 <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
-                <span className="text-xs font-medium text-zinc-300">T_REWRITE</span>
+                <span className="text-xs font-medium text-zinc-300">Rewrite</span>
               </button>
               <button className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left">
                 <Mic2 className="w-3.5 h-3.5 text-emerald-500 group-hover:text-emerald-400" />
-                <span className="text-xs font-medium text-zinc-300">T_DIALOGUE</span>
+                <span className="text-xs font-medium text-zinc-300">Fix Dialogue</span>
               </button>
             </div>
           </div>

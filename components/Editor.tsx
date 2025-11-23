@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { Film, Sparkles, Zap, LayoutTemplate } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -44,15 +43,99 @@ interface PageProps {
     onUnderflow: (id: string) => void;
     focusRequest?: { mode: 'start' | 'end' } | null;
     isNovelMode: boolean; // Prop for mode
+    projectMetadata: any; // Pass context for AI
 }
 
-const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode }: PageProps) => {
+const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode, projectMetadata }: PageProps) => {
     const pageRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
+    const ghostTextRef = useRef<HTMLSpanElement | null>(null);
 
-    // Define checkOverflow with useCallback so it can be used in effects
+    // --- Ghost Text Engine ---
+    const clearGhostText = () => {
+        if (ghostTextRef.current) {
+            ghostTextRef.current.remove();
+            ghostTextRef.current = null;
+        }
+    };
+
+    const acceptGhostText = () => {
+        if (ghostTextRef.current && pageRef.current) {
+            const text = ghostTextRef.current.innerText;
+            const parent = ghostTextRef.current.parentNode;
+            
+            const textNode = document.createTextNode(text);
+            
+            if (parent) {
+                parent.replaceChild(textNode, ghostTextRef.current);
+                parent.normalize(); 
+            }
+            
+            ghostTextRef.current = null;
+            
+            const range = document.createRange();
+            range.setStartAfter(textNode);
+            range.collapse(true);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+            
+            handleInput();
+        }
+    };
+
+    const triggerGhostAI = async () => {
+        if (!pageRef.current || ghostTextRef.current) return;
+        
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !pageRef.current.contains(sel.anchorNode)) return;
+
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return;
+
+        const fullText = pageRef.current.innerText;
+        
+        const suggestion = await generateAutocomplete(fullText, {
+            type: isNovelMode ? 'Novel' : 'Screenplay',
+            genre: projectMetadata.genres?.[0] || 'General',
+            style: isNovelMode ? 'Descriptive Prose' : 'Screenplay Action/Dialogue'
+        });
+
+        if (suggestion && document.activeElement === pageRef.current) {
+            insertGhostText(suggestion);
+        }
+    };
+
+    const insertGhostText = (text: string) => {
+        clearGhostText();
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        
+        const range = sel.getRangeAt(0);
+        
+        const span = document.createElement('span');
+        span.className = 'ai-ghost';
+        span.innerText = text;
+        span.contentEditable = 'false';
+        span.style.color = '#a1a1aa';
+        span.style.pointerEvents = 'none';
+
+        range.insertNode(span);
+        ghostTextRef.current = span;
+        
+        range.setStartBefore(span);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    };
+
+    // --- End Ghost Text Engine ---
+
     const checkOverflow = useCallback(() => {
         if (!pageRef.current) return false;
+        
+        if (ghostTextRef.current) ghostTextRef.current.style.display = 'none';
+
         const pageRect = pageRef.current.getBoundingClientRect();
         const bottomLimit = pageRect.bottom - MARGIN_BOTTOM_PX; 
         const nodes: Node[] = Array.from(pageRef.current.childNodes);
@@ -60,11 +143,11 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         let splitNodeIndex = -1;
         let isPartialOverflow = false;
 
-        // 1. Detect Overflow
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
-            let nodeBottom = 0;
-            let nodeTop = 0;
+            if (node === ghostTextRef.current) continue;
+
+            let nodeBottom = 0, nodeTop = 0;
 
             if (node.nodeType === Node.ELEMENT_NODE) {
                 const rect = (node as HTMLElement).getBoundingClientRect();
@@ -78,25 +161,20 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                 nodeTop = rect.top;
             }
 
-            if (nodeTop > bottomLimit) {
-                splitNodeIndex = i;
-                break;
-            }
-            if (nodeBottom > bottomLimit) {
-                splitNodeIndex = i;
-                isPartialOverflow = true;
-                break;
-            }
+            if (nodeTop > bottomLimit) { splitNodeIndex = i; break; }
+            if (nodeBottom > bottomLimit) { splitNodeIndex = i; isPartialOverflow = true; break; }
         }
+
+        if (ghostTextRef.current) ghostTextRef.current.style.display = 'inline';
 
         if (splitNodeIndex === -1) return false;
 
-        // 2. Calculate Split Content
         let overflowHTML = '';
         let trimmedHTML = '';
         
         for(let i=0; i<splitNodeIndex; i++) {
             const node = nodes[i];
+            if (node === ghostTextRef.current) continue;
             trimmedHTML += node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement).outerHTML : (node.textContent || '');
         }
 
@@ -107,10 +185,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             if (splitNode.nodeType === Node.TEXT_NODE) {
                  const splitPoint = findBinarySplitIndex(splitNode, bottomLimit);
                  const fullText = splitNode.textContent || '';
-                 
-                 // Prevent splitting if it results in empty predecessor (unless it's the only node)
                  if (splitNodeIndex === 0 && splitPoint === 0) return false;
-
                  if (splitPoint > 0 && splitPoint < fullText.length) {
                      trimmedHTML += fullText.substring(0, splitPoint);
                      overflowHTML += isNovelMode ? `<p>${fullText.substring(splitPoint)}</p>` : `<div class="sp-action">${fullText.substring(splitPoint)}</div>`;
@@ -124,9 +199,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                     const textNode = el.firstChild;
                     const splitPoint = findBinarySplitIndex(textNode, bottomLimit);
                     const fullText = textNode.textContent || '';
-                    
                     if (splitNodeIndex === 0 && splitPoint === 0) return false;
-
                     if (splitPoint > 0 && splitPoint < fullText.length) {
                         const tagName = el.tagName.toLowerCase();
                         const className = el.className;
@@ -146,77 +219,65 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
 
         if (nodesToRemove.length > 0) {
              overflowHTML += nodesToRemove.map(node => {
+                 if (node === ghostTextRef.current) return '';
                  return node.nodeType === Node.ELEMENT_NODE 
                     ? (node as HTMLElement).outerHTML 
                     : (isNovelMode ? `<p>${node.textContent}</p>` : `<div class="sp-action">${node.textContent}</div>`);
              }).join('');
              
-             nodesToRemove.forEach(node => node.parentNode?.removeChild(node));
+             nodesToRemove.forEach(node => {
+                 if (node !== ghostTextRef.current) node.parentNode?.removeChild(node);
+             });
         }
 
         if (overflowHTML) {
+            clearGhostText();
             onSplit(id, trimmedHTML || pageRef.current.innerHTML, overflowHTML);
             return true;
         }
         return false;
     }, [id, onSplit, isNovelMode]);
 
-    // Sync Content & Check Overflow (Externally Triggered)
     useLayoutEffect(() => {
         if (pageRef.current) {
             if (isInternalUpdate.current) {
                 isInternalUpdate.current = false;
                 return;
             }
-
-            const currentLen = pageRef.current.innerHTML.length;
-            const newLen = initialContent.length;
-            
-            // Update DOM if external content changed
-            if (Math.abs(currentLen - newLen) > 0) {
+            if (pageRef.current.innerHTML !== initialContent) {
                  pageRef.current.innerHTML = initialContent;
-                 
-                 // Check for overflow after external update (e.g. AI insert or Paste)
-                 requestAnimationFrame(() => {
-                     checkOverflow();
-                 });
+                 requestAnimationFrame(() => checkOverflow());
             }
         }
     }, [initialContent, checkOverflow]);
 
-    // Handle Focus
     useEffect(() => {
         if (focusRequest && pageRef.current) {
             const sel = window.getSelection();
             const range = document.createRange();
-            
             if (focusRequest.mode === 'start') {
-                let target: Node = pageRef.current;
-                if (pageRef.current.firstChild) target = pageRef.current.firstChild;
+                let target: Node = pageRef.current.firstChild || pageRef.current;
                 range.setStart(target, 0);
                 range.collapse(true);
             } else {
                 range.selectNodeContents(pageRef.current);
                 range.collapse(false);
             }
-            
             sel?.removeAllRanges();
             sel?.addRange(range);
             pageRef.current.focus();
-            
-            // Scroll to the top of this page to ensure user knows they moved DOWN to a new page
             pageRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
     }, [focusRequest]);
 
     const handleInput = () => {
         if (!pageRef.current) return;
+        clearGhostText();
         isInternalUpdate.current = true;
-        
         const didSplit = checkOverflow();
-        
         if (!didSplit) {
-             onUpdate(id, pageRef.current.innerHTML);
+             const rawHTML = pageRef.current.innerHTML.replace(/<span class="ai-ghost".*?>.*?<\/span>/g, '');
+             onUpdate(id, rawHTML);
              if (pageRef.current.scrollHeight > pageRef.current.clientHeight) {
                  checkOverflow();
              }
@@ -224,19 +285,36 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Tab') {
+            if (ghostTextRef.current) {
+                e.preventDefault();
+                acceptGhostText();
+            }
+            return;
+        }
+        if (['Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            if (ghostTextRef.current) {
+                e.preventDefault();
+                clearGhostText();
+            }
+            return;
+        }
+        if (e.key === ' ') {
+            clearGhostText();
+            setTimeout(() => triggerGhostAI(), 10);
+        }
         if (e.key === 'Backspace') {
+            clearGhostText();
             const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0 && sel.getRangeAt(0).collapsed) {
-                if (sel.anchorOffset === 0 && index > 0) {
-                    if (pageRef.current?.innerText.trim() === '' || (sel.anchorNode === pageRef.current)) {
-                        e.preventDefault();
-                        onUnderflow(id);
-                    }
+            if (sel?.rangeCount && sel.getRangeAt(0).collapsed && sel.anchorOffset === 0 && index > 0) {
+                if (pageRef.current?.innerText.trim() === '' || (sel.anchorNode === pageRef.current)) {
+                    e.preventDefault();
+                    onUnderflow(id);
                 }
             }
         }
         if (e.key === 'Enter') {
-            // Allow Enter to register, then check for overflow immediately
+            clearGhostText();
             requestAnimationFrame(() => handleInput());
         }
     };
@@ -271,49 +349,32 @@ const Editor: React.FC = () => {
   
   const [pages, setPages] = useState<{id: string, content: string}[]>([{id: 'init', content: ''}]);
   const [focusTarget, setFocusTarget] = useState<{ id: string, mode: 'start' | 'end' } | null>(null);
-
-  const [showSuggestion, setShowSuggestion] = useState(false);
-  const [suggestionText, setSuggestionText] = useState('');
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
   
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   const isNovelMode = currentProject?.type === 'Novel';
 
-  // --- Sync Logic: Handles both scene switching and external updates (Insert AI) ---
   useEffect(() => {
       if (!scene) return;
-
       const localContent = pages.map(p => p.content).join('');
       const remoteContent = scene.content;
 
-      // 1. Scene Switch / Fresh Load
       if (pages.length === 1 && pages[0].content === '' && remoteContent !== '') {
            setPages([{ id: Date.now().toString(), content: remoteContent }]);
            return;
       }
-
-      // 2. Check for Append (AI Insertion)
       if (remoteContent.length > localContent.length + 5) {
-          const lengthDiff = remoteContent.length - localContent.length;
-          const newPart = remoteContent.slice(-lengthDiff);
-          
+          const newPart = remoteContent.slice(localContent.length);
           setPages(prev => {
               const next = [...prev];
               const lastIndex = next.length - 1;
-              next[lastIndex] = { 
-                  ...next[lastIndex], 
-                  content: next[lastIndex].content + newPart 
-              };
+              next[lastIndex] = { ...next[lastIndex], content: next[lastIndex].content + newPart };
               return next;
           });
           return;
       }
-
-      // 3. Fallback: Drastic Change
       if (Math.abs(remoteContent.length - localContent.length) > 20) {
            setPages([{ id: Date.now().toString(), content: remoteContent }]);
       }
-
   }, [currentSceneId, scene?.content]); 
 
   const syncToGlobal = (newPages: {id: string, content: string}[]) => {
@@ -329,36 +390,22 @@ const Editor: React.FC = () => {
   }, [currentSceneId]);
 
   const handlePageSplit = useCallback((sourceId: string, trimmedContent: string, overflowContent: string) => {
-      // Allow empty/whitespace splits (e.g. hitting Enter at end of page)
-      const hasContent = overflowContent.trim().length > 0;
-      if (!hasContent && !overflowContent.includes('<')) {
-          // Allow splits for newlines
-      }
-
       setPages(prev => {
           const index = prev.findIndex(p => p.id === sourceId);
           if (index === -1) return prev;
-
           const next = [...prev];
           next[index] = { ...next[index], content: trimmedContent };
-
           const newId = Date.now().toString() + Math.random().toString().slice(2,6);
-          
           if (index + 1 < next.length) {
-              next[index + 1] = { 
-                  ...next[index + 1], 
-                  content: overflowContent + next[index + 1].content 
-              };
+              next[index + 1] = { ...next[index + 1], content: overflowContent + next[index + 1].content };
               setFocusTarget({ id: next[index + 1].id, mode: 'start' });
           } else {
               next.splice(index + 1, 0, { id: newId, content: overflowContent });
               setFocusTarget({ id: newId, mode: 'start' });
           }
-          
           syncToGlobal(next);
           return next;
       });
-      
       setTimeout(() => setFocusTarget(null), 50);
   }, [currentSceneId]);
 
@@ -366,7 +413,6 @@ const Editor: React.FC = () => {
        setPages(prev => {
            const index = prev.findIndex(p => p.id === id);
            if (index <= 0) return prev;
-
            const next = [...prev];
            if (!next[index].content.replace(/<[^>]*>/g, '').trim()) {
                const prevPageId = next[index - 1].id;
@@ -379,26 +425,6 @@ const Editor: React.FC = () => {
            return prev;
        });
   }, []);
-
-  const triggerAI = async () => {
-     const fullText = pages.map(p => p.content).join('\n');
-     const genreContext = currentProject?.genres.join(', ') || 'Sci-Fi';
-     setIsLoadingAI(true);
-     const result = await generateAutocomplete(fullText.slice(-2000), genreContext); 
-     if (result) {
-         setSuggestionText(result);
-         setShowSuggestion(true);
-     }
-     setIsLoadingAI(false);
-  };
-
-  const handleAcceptAI = () => {
-      const targetIndex = pages.length - 1;
-      const targetPage = pages[targetIndex];
-      const newContent = targetPage.content + `<div class="sp-action">${suggestionText}</div>`;
-      handlePageUpdate(targetPage.id, newContent);
-      setShowSuggestion(false);
-  };
 
   if (!scene) return <div className="flex items-center justify-center h-full text-zinc-500 bg-zinc-950">No scene selected.</div>;
 
@@ -432,25 +458,18 @@ const Editor: React.FC = () => {
                     onUnderflow={handleUnderflow}
                     focusRequest={focusTarget?.id === page.id ? focusTarget : null}
                     isNovelMode={isNovelMode}
+                    projectMetadata={currentProject || {}}
                 />
             ))}
             <div className="h-32 flex-shrink-0" />
         </div>
 
-        {showSuggestion && (
-             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-96 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-4 backdrop-blur-xl animate-in slide-in-from-bottom-4">
-                 <div className="flex items-center gap-2 mb-2 text-primary-400">
-                    <Zap className="w-4 h-4" /> <span className="text-xs font-semibold uppercase tracking-wider">Zoer Suggestion</span>
-                </div>
-                <div className="text-sm text-zinc-200 font-screenplay mb-4 italic pl-2 border-l-2 border-primary-500">"{suggestionText}"</div>
-                <div className="flex gap-2">
-                    <button onClick={handleAcceptAI} className="flex-1 bg-primary-600 hover:bg-primary-500 text-white text-xs py-1.5 rounded font-medium">Accept</button>
-                    <button onClick={() => setShowSuggestion(false)} className="px-3 py-1.5 hover:bg-zinc-800 text-zinc-400 text-xs rounded">Dismiss</button>
-                </div>
-             </div>
-        )}
-
         <style>{`
+            .ai-ghost {
+                color: #a1a1aa;
+                opacity: 0.6;
+                pointer-events: none;
+            }
             /* Dark Mode Screenplay Formatting */
             .screenplay-mode .sp-slug { color: #e4e4e7; font-weight: bold; text-decoration: underline; margin-top: 1.5rem; text-transform: uppercase; }
             .screenplay-mode .sp-action { color: #d4d4d8; margin-bottom: 1rem; line-height: 1.6; }

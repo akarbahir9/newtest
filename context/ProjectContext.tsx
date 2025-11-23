@@ -61,6 +61,12 @@ const SEED_PROJECT: Project = {
   ]
 };
 
+// Type for the confirmation modal state
+type ConfirmationState = {
+  message: string;
+  onConfirm: () => void;
+} | null;
+
 interface ProjectContextType {
   projects: Project[];
   currentProject: Project | null;
@@ -83,14 +89,18 @@ interface ProjectContextType {
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   addScene: (episodeId?: string) => void;
+  deleteScene: (sceneId: string) => void; // New function
   updateSceneContent: (sceneId: string, content: string) => void;
   updateSceneSummary: (sceneId: string, summary: string) => void;
   addCharacter: (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => void;
   updateCharacter: (char: Character) => void;
   addLocation: (loc: Omit<Location, 'id'>) => void;
-  // Functions for Episode Management
   addEpisode: () => void;
   updateEpisode: (episodeId: string, title: string) => void;
+  // New confirmation modal functions
+  confirmationState: ConfirmationState;
+  showConfirmation: (message: string, onConfirm: () => void) => void;
+  hideConfirmation: () => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -103,6 +113,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isRightPanelOpen, setRightPanelOpen] = useState(true);
+  
+  // State for confirmation modal
+  const [confirmationState, setConfirmationState] = useState<ConfirmationState>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('zoer-projects');
@@ -125,6 +138,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (window.innerWidth < 768) {
         setSidebarOpen(false);
     }
+  };
+
+  const showConfirmation = (message: string, onConfirm: () => void) => {
+    setConfirmationState({ message, onConfirm });
+  };
+
+  const hideConfirmation = () => {
+    setConfirmationState(null);
   };
 
   const addProject = (
@@ -167,16 +188,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const newProject: Project = {
       id: Date.now().toString(),
-      title,
-      type,
-      format,
-      genres,
-      ...metadata,
+      title, type, format, genres, ...metadata,
       updatedAt: new Date().toISOString(),
       scenes: initialScenes,
       episodes: initialEpisodes,
-      characters: [],
-      locations: []
+      characters: [], locations: []
     };
     setProjects([...projects, newProject]);
     setCurrentProjectId(newProject.id);
@@ -203,7 +219,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  // --- EPISODE MANAGEMENT ---
   const addEpisode = () => {
       if (!currentProject || currentProject.type !== 'Serial') return;
       const nextNum = (currentProject.episodes?.length || 0) + 1;
@@ -213,10 +228,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           number: nextNum
       };
       
-      const updatedProject = { 
-          ...currentProject, 
-          episodes: [...(currentProject.episodes || []), newEp] 
-      };
+      const updatedProject = { ...currentProject, episodes: [...(currentProject.episodes || []), newEp] };
       setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
   };
 
@@ -260,6 +272,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
     setCurrentSceneId(newScene.id);
     navigateTo('editor');
+  };
+
+  const deleteScene = (sceneId: string) => {
+      if (!currentProject) return;
+
+      const sceneIndex = currentProject.scenes.findIndex(s => s.id === sceneId);
+      if (sceneIndex === -1) return;
+
+      const updatedScenes = currentProject.scenes.filter(s => s.id !== sceneId);
+
+      // Handle active scene change
+      if (currentSceneId === sceneId) {
+          if (updatedScenes.length === 0) {
+              setCurrentSceneId('');
+          } else {
+              // Switch to previous or next scene
+              const newIndex = Math.max(0, sceneIndex - 1);
+              setCurrentSceneId(updatedScenes[newIndex].id);
+          }
+      }
+
+      const updatedProject = { ...currentProject, scenes: updatedScenes };
+      setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
   };
 
   const updateSceneContent = (sceneId: string, content: string) => {
@@ -329,14 +364,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       updateProject,
       deleteProject,
       addScene,
+      deleteScene,
       updateSceneContent,
       updateSceneSummary,
       addCharacter,
       updateCharacter,
       addLocation,
-      // CRITICAL FIX: Expose episode functions
       addEpisode,
       updateEpisode,
+      confirmationState,
+      showConfirmation,
+      hideConfirmation,
     }}>
       {children}
     </ProjectContext.Provider>

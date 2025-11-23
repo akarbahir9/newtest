@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
@@ -11,6 +10,7 @@ import Search from './components/Search';
 import Settings from './components/Settings';
 import Inbox from './components/Inbox';
 import Outline from './components/Outline';
+import ConfirmationModal from './components/ConfirmationModal'; // Import the modal
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
 const MainLayout: React.FC = () => {
@@ -41,6 +41,9 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="flex h-full w-full relative">
+      {/* Confirmation Modal Rendered Globally */}
+      <ConfirmationModal />
+
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 

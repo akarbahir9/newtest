@@ -44,43 +44,89 @@ export const generateAssistantResponse = async (
   }
 };
 
-export const checkContradictions = async (context: string): Promise<string | null> => {
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Analyze the following story context for logical contradictions, specifically regarding character injuries or location states. 
-      
-      Context: ${context}
-      
-      If a contradiction exists, explain it briefly in one sentence. If none, return "NO_CONTRADICTION".`,
-    });
-    
-    const text = response.text?.trim();
-    return text === "NO_CONTRADICTION" ? null : text || null;
-  } catch (error) {
-    return null;
-  }
-};
-
 export const generateAutocomplete = async (
   currentText: string,
-  genre: string = "Sci-Fi"
+  context: {
+      type: string,
+      genre: string,
+      style: string
+  }
 ): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Complete the following screenplay scene snippet. It is a ${genre} script. 
-      Provide only the next 1-2 sentences of dialogue or action. Do not repeat the input.
+      contents: `You are an inline Ghost Text autocomplete engine for a creative writing app.
+      Your job is to provide a VERY short continuation (3-10 words) of the user's current sentence or thought.
       
-      Input:
-      ${currentText}`,
+      CONTEXT:
+      Project Type: ${context.type}
+      Genre: ${context.genre}
+      Writing Style: ${context.style}
+      
+      INPUT TEXT (Last 500 chars):
+      "${currentText.slice(-500)}"
+      
+      RULES:
+      1. Provide ONLY the suggested text. No explanations. No quotes.
+      2. If the input stops mid-sentence, finish it naturally.
+      3. If the input is a complete sentence, suggest the start of the next logical action or dialogue.
+      4. MATCH THE FORMAT:
+         - If Screenplay: Suggest action lines or dialogue.
+         - If Novel: Suggest prose.
+      5. Keep it short (max 15 words). It must look like a natural continuation.
+      6. Do NOT repeat words that are already at the end of the input.
+      
+      COMPLETION:`,
       config: {
-        maxOutputTokens: 50,
-        temperature: 0.6,
+        maxOutputTokens: 25,
+        temperature: 0.4,
+        stopSequences: ["\n", ".", "  "]
       }
     });
-    return response.text || "";
+    const suggestion = response.text?.trim() || "";
+    const lastWord = currentText.trim().split(' ').pop();
+    if (lastWord && suggestion.startsWith(lastWord)) {
+        return suggestion.slice(lastWord.length).trim();
+    }
+    return suggestion;
   } catch (error) {
     return "";
+  }
+};
+
+export const generateStructuredSuggestions = async (context: string): Promise<any> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `You are a sophisticated story engine. Analyze the provided metadata and scene content.
+      
+      Generate 4 distinct types of suggestions based on the context:
+      1. Plot: Next beats or scene ideas.
+      2. Character: How characters should react or develop.
+      3. World: Sensory details or lore to add.
+      4. Complication: A MAJOR plot twist or obstacle to raise the stakes immediately.
+      
+      CONTEXT:
+      ${context}
+      
+      Return ONLY valid JSON with this structure:
+      {
+        "plot": ["suggestion 1", "suggestion 2"],
+        "character": ["suggestion 1", "suggestion 2"],
+        "world": ["suggestion 1", "suggestion 2"],
+        "complication": "A single paragraph describing a major complication."
+      }
+      
+      For the 'complication', make it dramatic and relevant to the genre.`,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.7,
+      }
+    });
+    
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Suggestion Generation Error:", error);
+    return null;
   }
 };
