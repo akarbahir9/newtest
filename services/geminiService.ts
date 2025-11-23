@@ -49,45 +49,79 @@ export const generateAutocomplete = async (
   context: {
       type: string,
       genre: string,
-      style: string
+      style: string,
+      title?: string,
+      logline?: string,
+      characters?: string,
+      setting?: string,
+      goal?: string
   }
 ): Promise<string> => {
   try {
+    // Construct rich context for the model
+    const projectContext = `
+    PROJECT DETAILS:
+    Title: ${context.title || 'Untitled'}
+    Format: ${context.type}
+    Genre: ${context.genre}
+    Style: ${context.style}
+    Logline: ${context.logline || 'N/A'}
+    Setting: ${context.setting || 'N/A'}
+    Protagonist Goal: ${context.goal || 'N/A'}
+    Key Characters: ${context.characters || 'N/A'}
+    `;
+
+    const prompt = `You are an expert creative writing co-pilot (Ghost Text).
+    
+    ${projectContext}
+    
+    TASK:
+    Predict the immediate next few words (2-10 words) to continue the story naturally.
+    The input text ends abruptly. You must continue it seamlessly.
+    
+    RULES:
+    1. Output ONLY the continuation text.
+    2. Do NOT repeat the last word of the input.
+    3. Do NOT provide explanations or quotes.
+    4. Match the tone and voice of the input exactly.
+    5. If the input ends with a space, provide the next word.
+    
+    INPUT TEXT (The story so far):
+    ${currentText.slice(-2000)}
+    
+    CONTINUATION:`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `You are an inline Ghost Text autocomplete engine for a creative writing app.
-      Your job is to provide a VERY short continuation (3-10 words) of the user's current sentence or thought.
-      
-      CONTEXT:
-      Project Type: ${context.type}
-      Genre: ${context.genre}
-      Writing Style: ${context.style}
-      
-      INPUT TEXT (Last 500 chars):
-      "${currentText.slice(-500)}"
-      
-      RULES:
-      1. Provide ONLY the suggested text. No explanations. No quotes.
-      2. If the input stops mid-sentence, finish it naturally.
-      3. If the input is a complete sentence, suggest the start of the next logical action or dialogue.
-      4. MATCH THE FORMAT:
-         - If Screenplay: Suggest action lines or dialogue.
-         - If Novel: Suggest prose.
-      5. Keep it short (max 15 words). It must look like a natural continuation.
-      6. Do NOT repeat words that are already at the end of the input.
-      
-      COMPLETION:`,
+      contents: prompt,
       config: {
-        maxOutputTokens: 25,
-        temperature: 0.4,
-        stopSequences: ["\n", ".", "  "]
+        maxOutputTokens: 20, // Keep it short for inline feel
+        temperature: 0.4,    // Balanced creativity and coherence
+        stopSequences: ["\n"] // Stop at line breaks to prevent multi-line ghosts
       }
     });
-    const suggestion = response.text?.trim() || "";
-    const lastWord = currentText.trim().split(' ').pop();
-    if (lastWord && suggestion.startsWith(lastWord)) {
-        return suggestion.slice(lastWord.length).trim();
+    
+    let suggestion = response.text?.trim() || "";
+    if (!suggestion) return "";
+
+    // Intelligent overlap removal to prevent stuttering
+    // e.g. Input: "Hello world" -> Suggestion: "world is big" -> Result: " is big"
+    const words = currentText.trim().split(/\s+/);
+    const lastWord = words[words.length - 1];
+    
+    if (lastWord) {
+        const lowerSuggestion = suggestion.toLowerCase();
+        const lowerLastWord = lastWord.toLowerCase();
+        
+        // If suggestion starts with the last word, strip it
+        if (lowerSuggestion.startsWith(lowerLastWord)) {
+             suggestion = suggestion.slice(lastWord.length).trim();
+        }
     }
+    
+    // Safety cleanup: remove leading punctuation if it doesn't make sense (optional, but good for flow)
+    // For now, we trust the model mostly, but ensure leading space is handled by the UI
+    
     return suggestion;
   } catch (error) {
     return "";
@@ -117,7 +151,7 @@ export const generateStructuredSuggestions = async (context: string): Promise<an
         "complication": "A single paragraph describing a major complication."
       }
       
-      For the 'complication', make it dramatic and relevant to the genre.`,
+      For the 'complication', make it dramatic and relevant to the horrific genre.`,
       config: {
         responseMimeType: 'application/json',
         temperature: 0.7,

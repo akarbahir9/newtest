@@ -50,6 +50,8 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     const pageRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
     const ghostTextRef = useRef<HTMLSpanElement | null>(null);
+    const ghostTimeoutRef = useRef<any>(null);
+    const requestVersion = useRef(0);
 
     // --- Ghost Text Engine ---
     const clearGhostText = () => {
@@ -68,7 +70,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             
             if (parent) {
                 parent.replaceChild(textNode, ghostTextRef.current);
-                parent.normalize(); 
+                // Do not normalize immediately to preserve textNode reference for Range
             }
             
             ghostTextRef.current = null;
@@ -84,24 +86,79 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         }
     };
 
+    // Robustly get text before caret to prevent AI confusing end of page with cursor pos
+    const getTextBeforeCaret = () => {
+        if (!pageRef.current) return '';
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return pageRef.current.innerText;
+        
+        const anchorNode = sel.anchorNode;
+        if (!anchorNode) return pageRef.current.innerText;
+
+        // Find the block-level element containing the cursor (child of pageRef)
+        let currentBlock = anchorNode as Node;
+        // If cursor is directly in pageRef (rare but possible), handle gracefully
+        if (currentBlock === pageRef.current) {
+             const range = sel.getRangeAt(0);
+             const pre = range.cloneRange();
+             pre.selectNodeContents(pageRef.current);
+             pre.setEnd(range.endContainer, range.endOffset);
+             return pre.toString();
+        }
+
+        while (currentBlock.parentNode && currentBlock.parentNode !== pageRef.current) {
+            currentBlock = currentBlock.parentNode;
+        }
+
+        // Aggregate text from all previous siblings to preserve structure
+        let text = '';
+        let sibling = pageRef.current.firstChild;
+        while (sibling && sibling !== currentBlock) {
+            text += (sibling.textContent || '') + '\n';
+            sibling = sibling.nextSibling;
+        }
+
+        // Add text from the current block up to the cursor
+        const range = sel.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(currentBlock);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        text += preCaretRange.toString();
+
+        return text;
+    };
+
     const triggerGhostAI = async () => {
         if (!pageRef.current || ghostTextRef.current) return;
         
+        // Ensure editor is still focused or at least we are in a valid state
         const sel = window.getSelection();
-        if (!sel || !sel.rangeCount || !pageRef.current.contains(sel.anchorNode)) return;
+        if (!sel || !sel.rangeCount) return;
+        
+        // Simple check to ensure we are inside the editor
+        if (!pageRef.current.contains(sel.anchorNode)) return;
 
         const range = sel.getRangeAt(0);
         if (!range.collapsed) return;
 
-        const fullText = pageRef.current.innerText;
+        const contextText = getTextBeforeCaret();
+        const currentVersion = requestVersion.current;
         
-        const suggestion = await generateAutocomplete(fullText, {
+        const suggestion = await generateAutocomplete(contextText, {
             type: isNovelMode ? 'Novel' : 'Screenplay',
-            genre: projectMetadata.genres?.[0] || 'General',
-            style: isNovelMode ? 'Descriptive Prose' : 'Screenplay Action/Dialogue'
+            genre: projectMetadata.genres?.join(', ') || 'General',
+            style: isNovelMode ? 'Descriptive Prose' : 'Screenplay Action/Dialogue',
+            title: projectMetadata.title,
+            logline: projectMetadata.logline,
+            setting: projectMetadata.setting,
+            goal: projectMetadata.protagonistGoal,
+            characters: projectMetadata.characters?.map((c: any) => `${c.name} (${c.role}, ${c.traits?.join(',') || ''})`).join('; ')
         });
 
-        if (suggestion && document.activeElement === pageRef.current) {
+        // Ensure request is not stale
+        if (currentVersion !== requestVersion.current) return;
+
+        if (suggestion) {
             insertGhostText(suggestion);
         }
     };
@@ -115,14 +172,15 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         
         const span = document.createElement('span');
         span.className = 'ai-ghost';
-        span.innerText = text;
+        span.innerText = text; // Add space if needed? Usually prompt handles or user typed space.
         span.contentEditable = 'false';
-        span.style.color = '#a1a1aa';
+        // IMPORTANT: Prevent pointer events so clicking doesn't select the ghost text easily
         span.style.pointerEvents = 'none';
 
         range.insertNode(span);
         ghostTextRef.current = span;
         
+        // Reset cursor to BEFORE the ghost text so typing continues normally
         range.setStartBefore(span);
         range.collapse(true);
         sel.removeAllRanges();
@@ -272,10 +330,15 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
 
     const handleInput = () => {
         if (!pageRef.current) return;
+        requestVersion.current++; // Invalidate pending ghosts
+        
+        // Clear ghost text on any input to ensure cancellation of visible ghosts
         clearGhostText();
+        
         isInternalUpdate.current = true;
         const didSplit = checkOverflow();
         if (!didSplit) {
+             // Remove any ghost spans that might have leaked into HTML string
              const rawHTML = pageRef.current.innerHTML.replace(/<span class="ai-ghost".*?>.*?<\/span>/g, '');
              onUpdate(id, rawHTML);
              if (pageRef.current.scrollHeight > pageRef.current.clientHeight) {
@@ -285,26 +348,44 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        // ACCEPT GHOST TEXT
         if (e.key === 'Tab') {
             if (ghostTextRef.current) {
                 e.preventDefault();
                 acceptGhostText();
+                return;
             }
-            return;
         }
+        
+        // CANCEL GHOST TEXT (Movement or Escape)
         if (['Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             if (ghostTextRef.current) {
-                e.preventDefault();
+                // Do not prevent default for arrows, just clear ghost
+                if (e.key === 'Escape') e.preventDefault();
                 clearGhostText();
             }
+            if (ghostTimeoutRef.current) clearTimeout(ghostTimeoutRef.current);
             return;
         }
+
+        // TRIGGER GHOST TEXT
         if (e.key === ' ') {
+            // Clear existing logic/text
             clearGhostText();
-            setTimeout(() => triggerGhostAI(), 10);
+            if (ghostTimeoutRef.current) clearTimeout(ghostTimeoutRef.current);
+            
+            // Set timeout to allow the space to be inserted into DOM first
+            // 200ms debounce
+            ghostTimeoutRef.current = setTimeout(() => triggerGhostAI(), 200);
+        } else {
+             // Any other key clears the timeout and the ghost text
+             if (ghostTimeoutRef.current) clearTimeout(ghostTimeoutRef.current);
+             if (ghostTextRef.current && e.key.length === 1) {
+                 clearGhostText();
+             }
         }
+
         if (e.key === 'Backspace') {
-            clearGhostText();
             const sel = window.getSelection();
             if (sel?.rangeCount && sel.getRangeAt(0).collapsed && sel.anchorOffset === 0 && index > 0) {
                 if (pageRef.current?.innerText.trim() === '' || (sel.anchorNode === pageRef.current)) {
@@ -314,7 +395,6 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             }
         }
         if (e.key === 'Enter') {
-            clearGhostText();
             requestAnimationFrame(() => handleInput());
         }
     };
@@ -466,9 +546,10 @@ const Editor: React.FC = () => {
 
         <style>{`
             .ai-ghost {
-                color: #a1a1aa;
                 opacity: 0.6;
                 pointer-events: none;
+                /* Match text color from index.html CSS roughly but ensure visibility */
+                color: #818cf8; 
             }
             /* Dark Mode Screenplay Formatting */
             .screenplay-mode .sp-slug { color: #e4e4e7; font-weight: bold; text-decoration: underline; margin-top: 1.5rem; text-transform: uppercase; }
