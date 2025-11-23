@@ -39,7 +39,7 @@ const Sidebar: React.FC = () => {
   return (
     <aside 
         className={`
-            fixed inset-y-0 left-0 z-50 h-full
+            fixed inset-y-0 left-0 z-[70] h-full
             border-r border-zinc-800/60 bg-zinc-925
             transition-all duration-300 ease-in-out flex-shrink-0
             md:relative
@@ -122,13 +122,23 @@ const Sidebar: React.FC = () => {
                 <div className="text-xxs font-semibold text-zinc-500 uppercase tracking-wider px-2 mb-2 flex justify-between items-center group">
                 Project Structure
                 {isSerial ? (
-                    <Plus onClick={(e) => { e.stopPropagation(); addEpisode(); }} className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition" title="Add Episode" />
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); addEpisode(); }} 
+                        className="bg-transparent p-0 border-none cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition text-inherit flex items-center" 
+                        title="Add Episode"
+                    >
+                        <Plus className="w-3 h-3" />
+                    </button>
                 ) : (
-                    <Plus 
+                    <button 
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); addScene(); }} 
-                        className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition" 
+                        className="bg-transparent p-0 border-none cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition text-inherit flex items-center" 
                         title={isNovel ? "Add Chapter" : "Add Scene"}
-                    />
+                    >
+                        <Plus className="w-3 h-3" />
+                    </button>
                 )}
                 </div>
                 
@@ -163,7 +173,14 @@ const Sidebar: React.FC = () => {
                                                     <span className="truncate font-medium text-zinc-300">{ep.title}</span>
                                                 </div>
                                                 <div className="flex items-center">
-                                                    <Plus onClick={(e) => { e.stopPropagation(); addScene(ep.id); if (!isExpanded) toggleEpisode(ep.id); }} className="w-3 h-3 mr-1 opacity-0 group-hover/ep:opacity-100 hover:text-white" title="Add Scene to Ep" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); addScene(ep.id); if (!isExpanded) toggleEpisode(ep.id); }} 
+                                                        className="bg-transparent p-0 border-none mr-1 opacity-0 group-hover/ep:opacity-100 hover:text-white flex items-center text-inherit cursor-pointer" 
+                                                        title="Add Scene to Ep"
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                    </button>
                                                     {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                                 </div>
                                             </div>

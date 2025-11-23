@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { FileText, Clock, Users, Film, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { FileText, Clock, Users, Book, ChevronRight, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Project, ProjectType, ProjectFormat } from '../types';
+import { PDFDocument, rgb } from 'pdf-lib';
+import html2canvas from 'html2canvas';
 
 const GENRES = [
     "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Cyberpunk", 
@@ -11,10 +13,13 @@ const GENRES = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, isSidebarOpen, setSidebarOpen } = useProject();
+  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, importProject } = useProject();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   
+  // File Input Ref for Import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Form State
   const [newTitle, setNewTitle] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('Screenplay');
@@ -66,6 +71,305 @@ const Dashboard: React.FC = () => {
           setProjectToDelete(null);
       }
   };
+  
+  // Export Handler (JSON)
+  const handleExportJSON = (e: React.MouseEvent, project: Project) => {
+      e.stopPropagation();
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_backup.json`);
+      document.body.appendChild(downloadAnchorNode); // required for firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+  };
+
+  // Export Handler (PDF) with Robust Page Breaking and Unicode Support
+  const handleExportPDF = async (e: React.MouseEvent, project: Project) => {
+      e.stopPropagation();
+      document.body.style.cursor = 'wait';
+      
+      try {
+        const pdfDoc = await PDFDocument.create();
+        
+        // A4 Dimensions (Points)
+        const pdfWidth = 595.28; 
+        const pdfHeight = 841.89;
+        
+        // HTML rendering dimensions (Pixels at approx 96 DPI)
+        // We use a fixed width container for consistent rendering
+        const pixelWidth = 794; 
+        const pixelHeight = 1123; 
+        const margin = 96; // 1 inch approx (96px)
+        
+        const css = `
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+            .pdf-export-wrapper {
+                font-family: 'Courier Prime', 'Noto Kufi Arabic', monospace;
+                color: #000000;
+                background: #ffffff;
+                width: ${pixelWidth}px;
+                position: absolute;
+                top: 0;
+                left: -9999px;
+                z-index: 10000;
+            }
+            .pdf-page {
+                width: ${pixelWidth}px;
+                height: ${pixelHeight}px;
+                padding: ${margin}px;
+                box-sizing: border-box;
+                background: #ffffff;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden; 
+            }
+            .pdf-page * {
+                direction: auto; 
+                unicode-bidi: plaintext;
+                color: #000000 !important;
+                background: transparent !important;
+                border-color: #000000 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+            }
+            
+            /* Screenplay Formatting Overrides for Black Text */
+            .sp-slug { 
+                font-weight: bold; 
+                text-transform: uppercase; 
+                margin-top: 24px; 
+                margin-bottom: 8px; 
+                font-size: 14px; 
+                line-height: 1.2; 
+                text-align: left; 
+                color: #000000 !important;
+            }
+            .sp-action { 
+                margin-bottom: 12px; 
+                line-height: 1.2; 
+                font-size: 14px; 
+                text-align: left; 
+                color: #000000 !important;
+            }
+            .sp-character { 
+                text-align: center; 
+                width: 60%; 
+                margin: 18px auto 0; 
+                text-transform: uppercase; 
+                font-weight: bold; 
+                font-size: 14px; 
+                line-height: 1.2; 
+                color: #000000 !important;
+            }
+            .sp-dialogue { 
+                text-align: center; 
+                width: 80%; 
+                margin: 0 auto 12px; 
+                line-height: 1.2; 
+                font-size: 14px; 
+                color: #000000 !important;
+            }
+            .sp-parenthetical { 
+                text-align: center; 
+                font-size: 12px; 
+                margin-bottom: 0; 
+                line-height: 1.2; 
+                color: #000000 !important;
+            }
+            .sp-transition { 
+                text-align: right; 
+                text-transform: uppercase; 
+                margin-top: 18px; 
+                margin-bottom: 18px; 
+                font-size: 14px; 
+                line-height: 1.2; 
+                color: #000000 !important;
+            }
+            .novel-chapter { 
+                font-size: 24px; 
+                font-weight: bold; 
+                text-align: center; 
+                margin-bottom: 30px; 
+                margin-top: 40px; 
+                page-break-before: always; 
+                color: #000000 !important;
+            }
+            p { 
+                margin-bottom: 12px; 
+                line-height: 1.5; 
+                text-indent: 24px; 
+                font-size: 14px; 
+                color: #000000 !important;
+            }
+            
+            .title-page-content {
+                text-align: center;
+                margin-top: 250px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                color: #000000 !important;
+            }
+        `;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'pdf-export-wrapper';
+        const styleTag = document.createElement('style');
+        styleTag.innerHTML = css;
+        wrapper.appendChild(styleTag);
+        document.body.appendChild(wrapper);
+
+        const addPageToPDF = async (element: HTMLElement, pageNum?: number) => {
+            const canvas = await html2canvas(element, {
+                scale: 2, // Higher scale for crisp text
+                logging: false,
+                useCORS: true,
+                windowWidth: pixelWidth,
+                height: pixelHeight,
+                backgroundColor: '#ffffff',
+                onclone: (clonedDoc) => {
+                    const all = clonedDoc.querySelectorAll('*');
+                    all.forEach((el: any) => {
+                         if (el.style) {
+                             el.style.color = '#000000';
+                             el.style.borderColor = '#000000';
+                         }
+                    });
+                }
+            });
+            
+            const imgData = canvas.toDataURL('image/png');
+            const img = await pdfDoc.embedPng(imgData);
+            const page = pdfDoc.addPage([pdfWidth, pdfHeight]);
+            
+            page.drawImage(img, {
+                x: 0,
+                y: 0,
+                width: pdfWidth,
+                height: pdfHeight
+            });
+
+            if (pageNum !== undefined) {
+                 page.drawText(`${pageNum}.`, {
+                     x: pdfWidth - 50,
+                     y: 30,
+                     size: 10,
+                     color: rgb(0, 0, 0)
+                 });
+            }
+        };
+
+        // --- Title Page ---
+        const titlePage = document.createElement('div');
+        titlePage.className = 'pdf-page';
+        titlePage.innerHTML = `
+            <div class="title-page-content">
+                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase;">${project.title}</h1>
+                <p style="font-size: 14px; margin-bottom: 40px; color: #000;">${project.type} Format</p>
+                <div style="height: 40px;"></div>
+                <p style="font-size: 12px; color: #333;">Written by</p>
+                <p style="font-size: 16px; font-weight: bold; margin-bottom: 20px;">Author</p>
+                ${project.logline ? `<p style="font-size: 12px; font-style: italic; max-width: 400px; color: #444; margin-top: 40px;">${project.logline}</p>` : ''}
+            </div>
+        `;
+        wrapper.appendChild(titlePage);
+        
+        await document.fonts.ready;
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        await addPageToPDF(titlePage); // No page number for cover
+        wrapper.removeChild(titlePage);
+
+        // --- Content Pages ---
+        const sourceDiv = document.createElement('div');
+        // Concatenate all scenes
+        const fullContent = [...project.scenes].sort((a,b) => a.number - b.number).map(s => s.content).join("");
+        sourceDiv.innerHTML = fullContent;
+        // Use childNodes to capture text nodes as well if they exist loose
+        const children = Array.from(sourceDiv.childNodes);
+
+        let currentPage = document.createElement('div');
+        currentPage.className = 'pdf-page';
+        wrapper.appendChild(currentPage);
+        
+        let pageNumber = 1;
+
+        for (const child of children) {
+            // Only process element nodes or non-empty text nodes
+            if (child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()) continue;
+
+            const clone = child.cloneNode(true) as HTMLElement;
+            currentPage.appendChild(clone);
+            
+            // Measure overflow using scrollHeight
+            // If scrollHeight > pixelHeight, content has overflowed
+            if (currentPage.scrollHeight > pixelHeight) {
+                // Remove overflowing node
+                currentPage.removeChild(clone);
+                
+                // Capture current Page
+                await addPageToPDF(currentPage, pageNumber++);
+                
+                // New Page
+                wrapper.removeChild(currentPage);
+                currentPage = document.createElement('div');
+                currentPage.className = 'pdf-page';
+                wrapper.appendChild(currentPage);
+                
+                // Add node to new page
+                currentPage.appendChild(clone);
+            }
+        }
+        
+        // Capture final page if it has content
+        if (currentPage.childNodes.length > 0) {
+            await addPageToPDF(currentPage, pageNumber);
+        }
+
+        document.body.removeChild(wrapper);
+
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${project.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+        link.click();
+
+      } catch (err) {
+          console.error("PDF Gen Error", err);
+          alert("Failed to generate PDF. Please try again.");
+      } finally {
+          document.body.style.cursor = 'default';
+      }
+  };
+
+  // Import Handlers
+  const handleImportClick = () => {
+      fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const json = JSON.parse(event.target?.result as string);
+              importProject(json);
+              alert("Project imported successfully!");
+          } catch (err) {
+              alert("Failed to parse project file. Please ensure it is a valid Zoer JSON file.");
+              console.error(err);
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // reset so same file can be selected again
+  };
 
   // Calculate Stats
   const totalWords = projects.reduce((acc, p) => acc + p.scenes.reduce((sAcc, s) => sAcc + s.content.length / 5, 0), 0); // Rough estimate
@@ -74,20 +378,36 @@ const Dashboard: React.FC = () => {
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto w-full">
-        <div className="flex justify-between items-center mb-6 pl-8 md:pl-0">
+        <div className="flex justify-between items-center mb-6 pl-0 md:pl-0">
             <div className="flex items-center gap-4">
                  <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
             </div>
-            <button 
-                onClick={() => setShowNewProjectModal(true)}
-                className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg shadow-primary-900/20"
-            >
-                <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">New Project</span>
-            </button>
+            
+            <div className="flex gap-2">
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange} 
+                    accept=".json" 
+                    className="hidden" 
+                />
+                <button 
+                    onClick={handleImportClick}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg border border-zinc-700/50"
+                >
+                    <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Import</span>
+                </button>
+                <button 
+                    onClick={() => setShowNewProjectModal(true)}
+                    className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg shadow-primary-900/20"
+                >
+                    <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">New Project</span>
+                </button>
+            </div>
         </div>
         
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
             <div className="flex justify-between items-start mb-3">
               <span className="text-zinc-500 text-xs font-medium uppercase tracking-wide">Total Words</span>
@@ -104,7 +424,7 @@ const Dashboard: React.FC = () => {
             <div className="text-2xl font-mono text-zinc-100">42m</div>
             <div className="text-xxs text-zinc-500 mt-1">Stable</div>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg col-span-1 sm:col-span-2 md:col-span-1">
             <div className="flex justify-between items-start mb-3">
               <span className="text-zinc-500 text-xs font-medium uppercase tracking-wide">Characters</span>
               <Users className="w-4 h-4 text-zinc-600" />
@@ -121,28 +441,42 @@ const Dashboard: React.FC = () => {
               <div 
                 key={project.id}
                 onClick={() => { setCurrentProject(project.id); navigateTo('editor'); }} 
-                className="group flex items-center justify-between p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-600 cursor-pointer transition relative"
+                className="group flex items-center justify-between p-3 md:p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-600 cursor-pointer transition relative"
               >
-                <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded ${project.type === 'Screenplay' ? 'bg-primary-900/30 text-primary-400 border-primary-500/20' : project.type === 'Serial' ? 'bg-purple-900/30 text-purple-400 border-purple-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700'} flex items-center justify-center border flex-shrink-0`}>
-                    {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                    <div className={`w-10 h-10 rounded ${project.type === 'Screenplay' ? 'bg-primary-900/30 text-primary-400 border-primary-500/20' : project.type === 'Serial' ? 'bg-purple-900/30 text-purple-400 border-purple-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700'} flex items-center justify-center border flex-shrink-0`}>
+                        {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-medium text-zinc-200 group-hover:text-white truncate">{project.title}</h3>
+                        <p className="text-xs text-zinc-500 truncate">
+                            {project.type} {project.type === 'Screenplay' && project.format ? `(${project.format})` : ''} • {project.genres.join(', ')}
+                        </p>
+                    </div>
                 </div>
-                <div className="min-w-0">
-                    <h3 className="text-sm font-medium text-zinc-200 group-hover:text-white truncate">{project.title}</h3>
-                    <p className="text-xs text-zinc-500 truncate">
-                        {project.type} {project.type === 'Screenplay' && project.format ? `(${project.format})` : ''} • {project.genres.join(', ')}
-                    </p>
-                </div>
-                </div>
-                <div className="flex items-center gap-6 flex-shrink-0">
-                <button 
-                    onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}
-                    className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded transition opacity-0 group-hover:opacity-100"
-                    title="Delete Project"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </button>
-                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button 
+                        onClick={(e) => handleExportPDF(e, project)}
+                        className="p-2 text-zinc-600 hover:text-zinc-200 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
+                        title="Download as PDF"
+                    >
+                        <FileDown className="w-4 h-4" />
+                    </button>
+                    <button 
+                        onClick={(e) => handleExportJSON(e, project)}
+                        className="p-2 text-zinc-600 hover:text-zinc-200 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
+                        title="Export Backup (JSON)"
+                    >
+                        <Download className="w-4 h-4" />
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}
+                        className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
+                        title="Delete Project"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                    <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
                 </div>
             </div>
           ))}

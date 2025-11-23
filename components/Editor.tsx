@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { Film, Undo, Redo, ZoomIn, ZoomOut } from 'lucide-react';
+import { Film, Undo, Redo, ZoomIn, ZoomOut, MapPin, User, MessageSquare, AlignLeft, ArrowRight, Parentheses, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { generateAutocomplete } from '../services/geminiService';
+
+// Helper for unique IDs
+const generateId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+};
 
 // A4 Specs
 const MARGIN_BOTTOM_PX = 96; // ~25mm
@@ -321,10 +329,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     };
 
     return (
-        <div className="relative group mb-8 flex-shrink-0 flex flex-col items-center">
-             <div className="absolute -right-12 top-0 text-xs text-zinc-600 font-mono hidden xl:block">
-                Page {index + 1}
-            </div>
+        <div className="relative group mb-4 md:mb-8 flex-shrink-0 flex flex-col items-center">
             <div 
                 ref={pageRef}
                 contentEditable
@@ -341,14 +346,56 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                     position: 'relative'
                 }}
             />
+            {/* Page Number - Bottom Center */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-zinc-500 font-mono pointer-events-none select-none opacity-60">
+                {index + 1}.
+            </div>
         </div>
     );
 });
 
+// --- Toolbar Component ---
+const FormattingToolbar: React.FC<{ onFormat: (cls: string) => void, activeFormat: string }> = ({ onFormat, activeFormat }) => {
+    
+    // Config for each button style
+    const buttons = [
+        { id: 'sp-slug', icon: MapPin, label: 'Slug', activeClass: 'bg-zinc-300 text-zinc-900', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+1' },
+        { id: 'sp-action', icon: AlignLeft, label: 'Action', activeClass: 'bg-zinc-600 text-white', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+2' },
+        { id: 'sp-character', icon: User, label: 'Char', activeClass: 'bg-blue-600 text-white', inactiveClass: 'text-blue-500 hover:text-blue-400 hover:bg-zinc-800', shortcut: 'Cmd+3' },
+        { id: 'sp-parenthetical', icon: Parentheses, label: 'Paren', activeClass: 'bg-amber-600 text-white', inactiveClass: 'text-amber-500 hover:text-amber-400 hover:bg-zinc-800', shortcut: 'Cmd+4' },
+        { id: 'sp-dialogue', icon: MessageSquare, label: 'Dial', activeClass: 'bg-emerald-600 text-white', inactiveClass: 'text-emerald-500 hover:text-emerald-400 hover:bg-zinc-800', shortcut: 'Cmd+5' },
+        { id: 'sp-transition', icon: ArrowRight, label: 'Trans', activeClass: 'bg-orange-600 text-white', inactiveClass: 'text-orange-500 hover:text-orange-400 hover:bg-zinc-800', shortcut: 'Cmd+6' },
+    ];
+
+    return (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.6)] flex items-center gap-1 z-50 animate-in fade-in slide-in-from-bottom-4 w-auto max-w-[95vw] overflow-x-auto no-scrollbar touch-pan-x">
+            {buttons.map((btn, idx) => {
+                const isActive = activeFormat === btn.id;
+                return (
+                    <React.Fragment key={btn.id}>
+                        <button 
+                            onMouseDown={(e) => { e.preventDefault(); onFormat(btn.id); }}
+                            className={`flex flex-col items-center justify-center w-12 h-11 rounded-lg transition-all duration-200 group relative flex-shrink-0 ${isActive ? btn.activeClass + ' shadow-md scale-105' : btn.inactiveClass}`}
+                            title={`${btn.label} (${btn.shortcut})`}
+                        >
+                            <btn.icon className={`w-4 h-4 mb-0.5 ${isActive ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+                            <span className="text-[9px] font-bold uppercase tracking-tight">{btn.label}</span>
+                            
+                            {/* Active Indicator Dot (Optional extra visual) */}
+                            {isActive && <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-white/50"></div>}
+                        </button>
+                        {idx < buttons.length - 1 && <div className="w-px h-6 bg-zinc-800/50 mx-0.5 flex-shrink-0"></div>}
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+};
+
 // --- Main Editor Component ---
 
 const Editor: React.FC = () => {
-  const { currentProject, currentSceneId, navigateTo, updateSceneContent, isRightPanelOpen, setRightPanelOpen, isSidebarOpen, setSidebarOpen } = useProject();
+  const { currentProject, currentSceneId, navigateTo, updateSceneContent, isRightPanelOpen, setRightPanelOpen, isSidebarOpen, setSidebarOpen, setCurrentSceneId } = useProject();
   
   const [pages, setPages] = useState<{id: string, content: string}[]>([{id: 'init', content: ''}]);
   const [focusTarget, setFocusTarget] = useState<{ id: string, mode: 'start' | 'end' } | null>(null);
@@ -360,6 +407,9 @@ const Editor: React.FC = () => {
 
   // Zoom State
   const [zoom, setZoom] = useState(1);
+
+  // Formatting State
+  const [activeFormat, setActiveFormat] = useState('');
   
   // Track last synced content to detect external updates (like AI)
   const lastSyncedContent = useRef<string>('');
@@ -367,16 +417,51 @@ const Editor: React.FC = () => {
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   const isNovelMode = currentProject?.type === 'Novel';
 
+  // Navigation Logic
+  const scenes = currentProject?.scenes || [];
+  const currentSceneIndex = scenes.findIndex(s => s.id === currentSceneId);
+  const prevScene = scenes[currentSceneIndex - 1];
+  const nextScene = scenes[currentSceneIndex + 1];
+
+  const handlePrevScene = useCallback(() => {
+      if (prevScene) setCurrentSceneId(prevScene.id);
+  }, [prevScene, setCurrentSceneId]);
+
+  const handleNextScene = useCallback(() => {
+      if (nextScene) setCurrentSceneId(nextScene.id);
+  }, [nextScene, setCurrentSceneId]);
+
   const handleZoomIn = () => setZoom(prev => Math.min(Math.round((prev + 0.1) * 10) / 10, 1.5));
-  const handleZoomOut = () => setZoom(prev => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.5));
-  const handleZoomReset = () => setZoom(1);
+  const handleZoomOut = () => setZoom(prev => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.3)); // Allow smaller zoom for mobile
+  const handleZoomReset = () => {
+       // Trigger auto-calculation
+       window.dispatchEvent(new Event('resize'));
+  };
 
   useEffect(() => {
     const updateZoom = () => {
-        const isDesktop = window.matchMedia("(min-width: 768px)").matches;
-        if (isDesktop) {
-            if (isSidebarOpen && isRightPanelOpen) {
-                setZoom(0.8);
+        const container = document.getElementById('editor-scroll');
+        if (!container) return;
+
+        const containerWidth = container.clientWidth;
+        const targetPageWidth = 794; // 210mm approx 794px at 96 DPI
+        const padding = 24; // Less padding for mobile calculation
+
+        if (containerWidth < targetPageWidth + padding) {
+            // Mobile/Tablet: Scale down to fit width precisely
+            const scale = (containerWidth - padding) / targetPageWidth;
+            setZoom(Math.max(scale, 0.3)); // Minimum scale 0.3
+        } else {
+            // Desktop
+            const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+            if (isDesktop && (isSidebarOpen || isRightPanelOpen)) {
+                 // Slight scale down if panels crowd the view
+                 const availableWidth = window.innerWidth - (isSidebarOpen ? 256 : 0) - (isRightPanelOpen ? 320 : 0);
+                 if (availableWidth < 900) {
+                     setZoom(0.85);
+                 } else {
+                     setZoom(1);
+                 }
             } else {
                 setZoom(1);
             }
@@ -384,12 +469,60 @@ const Editor: React.FC = () => {
     };
     
     // Initial check
-    updateZoom();
+    setTimeout(updateZoom, 100); // Small delay to ensure layout is ready
 
     // Listener for resize
     window.addEventListener('resize', updateZoom);
+    // Helper to trigger re-calc when sidebar/panel toggles, handled by dependency
     return () => window.removeEventListener('resize', updateZoom);
   }, [isSidebarOpen, isRightPanelOpen]);
+
+  // Detect Active Format based on Selection
+  useEffect(() => {
+      const checkFormat = () => {
+          const sel = window.getSelection();
+          if (!sel?.anchorNode) {
+              setActiveFormat('');
+              return;
+          }
+          let n: Node | null = sel.anchorNode;
+          
+          // Handle text nodes
+          if (n.nodeType === Node.TEXT_NODE) n = n.parentNode;
+          
+          let found = ''; // Start with no active format
+          
+          while (n && n.nodeName !== 'BODY') {
+               const el = n as HTMLElement;
+               
+               // Exact match for known formatting classes
+               if (el.classList?.contains('sp-slug')) { found = 'sp-slug'; break; }
+               if (el.classList?.contains('sp-character')) { found = 'sp-character'; break; }
+               if (el.classList?.contains('sp-dialogue')) { found = 'sp-dialogue'; break; }
+               if (el.classList?.contains('sp-parenthetical')) { found = 'sp-parenthetical'; break; }
+               if (el.classList?.contains('sp-transition')) { found = 'sp-transition'; break; }
+               if (el.classList?.contains('sp-action')) { found = 'sp-action'; break; }
+               
+               // Stop if we hit the page surface to avoid infinite climb
+               if (el.classList?.contains('page-surface')) break;
+               
+               n = n.parentNode;
+          }
+          setActiveFormat(found);
+      };
+      
+      document.addEventListener('selectionchange', checkFormat);
+      document.addEventListener('keyup', checkFormat);
+      document.addEventListener('mouseup', checkFormat);
+      document.addEventListener('click', checkFormat); 
+      
+      return () => {
+          document.removeEventListener('selectionchange', checkFormat);
+          document.removeEventListener('keyup', checkFormat);
+          document.removeEventListener('mouseup', checkFormat);
+          document.removeEventListener('click', checkFormat);
+      };
+  }, []);
 
   // Push to history with optional replacement
   const pushToHistory = useCallback((newPages: {id: string, content: string}[], replace = false) => {
@@ -417,7 +550,7 @@ const Editor: React.FC = () => {
 
       // 1. Initial Load
       if (pages.length === 1 && pages[0].id === 'init') {
-           const initPages = [{ id: Date.now().toString(), content: remoteContent }];
+           const initPages = [{ id: generateId(), content: remoteContent }];
            setPages(initPages);
            setHistory([initPages]);
            setHistoryIndex(0);
@@ -429,7 +562,7 @@ const Editor: React.FC = () => {
       // If the content is different from what we last synced, it's an external change.
       if (remoteContent !== lastSyncedContent.current) {
            // It's an external update (e.g. AI appended text)
-           const newPages = [{ id: Date.now().toString(), content: remoteContent }];
+           const newPages = [{ id: generateId(), content: remoteContent }];
            setPages(newPages);
            lastSyncedContent.current = remoteContent;
            
@@ -480,22 +613,6 @@ const Editor: React.FC = () => {
       }
   };
 
-  // Keyboard Shortcuts for Undo/Redo
-  useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-              e.preventDefault();
-              if (e.shiftKey) {
-                  handleRedo();
-              } else {
-                  handleUndo();
-              }
-          }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [historyIndex, history]); // Re-bind when history state changes
-
   const handlePageUpdate = useCallback((id: string, content: string) => {
       setPages(prev => {
           const next = prev.map(p => p.id === id ? { ...p, content } : p);
@@ -517,7 +634,10 @@ const Editor: React.FC = () => {
           if (index === -1) return prev;
           const next = [...prev];
           next[index] = { ...next[index], content: trimmedContent };
-          const newId = Date.now().toString() + Math.random().toString().slice(2,6);
+          
+          // Robust ID for new page
+          const newId = generateId();
+          
           if (index + 1 < next.length) {
               next[index + 1] = { ...next[index + 1], content: overflowContent + next[index + 1].content };
               setFocusTarget({ id: next[index + 1].id, mode: 'start' });
@@ -565,6 +685,124 @@ const Editor: React.FC = () => {
        });
   }, [pushToHistory]);
 
+  // --- Formatting Logic ---
+  const applyFormat = useCallback((formatClass: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    // We primarily care about the anchor node (where the cursor is)
+    const anchorNode = selection.anchorNode;
+    let targetNode: HTMLElement | null = null;
+
+    // 1. Find the block container inside a page
+    let curr = anchorNode;
+    while (curr && curr.nodeName !== 'BODY') {
+        // If we hit the page container, the previous element was likely our block target
+        // OR we are sitting directly on the page container (raw text node case)
+        if ((curr as HTMLElement).classList?.contains('page-surface')) {
+            break; 
+        }
+        // If this is a DIV/P inside the page surface, this is our target
+        if (curr.nodeType === Node.ELEMENT_NODE && curr.parentNode && (curr.parentNode as HTMLElement).classList?.contains('page-surface')) {
+            targetNode = curr as HTMLElement;
+            break;
+        }
+        curr = curr.parentNode;
+    }
+
+    // 2. Apply Format
+    if (targetNode) {
+        // Prevent messing with ghost text
+        if (targetNode.classList.contains('ai-ghost')) return;
+
+        targetNode.className = formatClass;
+        // Dispatch input to trigger React state update in Page component
+        targetNode.dispatchEvent(new Event('input', { bubbles: true }));
+        setActiveFormat(formatClass);
+    } else {
+        // Fallback: If selection is on a raw text node directly inside page-surface
+        // We use execCommand to wrap it in a div first
+        document.execCommand('formatBlock', false, 'div');
+        
+        // Re-acquire the node after wrapping
+        const newSel = window.getSelection();
+        if (newSel?.anchorNode) {
+            let n = newSel.anchorNode;
+            while (n && n.parentNode && !(n.parentNode as HTMLElement).classList?.contains('page-surface')) {
+                n = n.parentNode;
+            }
+            if (n && n.nodeType === Node.ELEMENT_NODE) {
+                (n as HTMLElement).className = formatClass;
+                (n as HTMLElement).dispatchEvent(new Event('input', { bubbles: true }));
+                setActiveFormat(formatClass);
+            }
+        }
+    }
+    
+    // Keep focus
+    if (selection.rangeCount > 0) {
+        // Focus is usually kept, but ensure page is active
+        const pageEl = selection.anchorNode?.parentElement?.closest('.page-surface');
+        if (pageEl) (pageEl as HTMLElement).focus();
+    }
+  }, []);
+
+  // Keyboard Shortcuts for Formatting & Navigation
+  useEffect(() => {
+    const handleShortcuts = (e: KeyboardEvent) => {
+        // Check modifiers (Cmd on Mac, Ctrl on Windows)
+        if (!(e.metaKey || e.ctrlKey)) return;
+
+        // Navigation Shortcuts
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            handlePrevScene();
+            return;
+        }
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            handleNextScene();
+            return;
+        }
+
+        // Skip formatting if novel mode
+        if (isNovelMode) return;
+
+        let format = '';
+        switch(e.key) {
+            case '1': format = 'sp-slug'; break;
+            case '2': format = 'sp-action'; break;
+            case '3': format = 'sp-character'; break;
+            case '4': format = 'sp-parenthetical'; break;
+            case '5': format = 'sp-dialogue'; break;
+            case '6': format = 'sp-transition'; break;
+        }
+
+        if (format) {
+            e.preventDefault();
+            applyFormat(format);
+        }
+    };
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+         if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+              e.preventDefault();
+              if (e.shiftKey) {
+                  handleRedo();
+              } else {
+                  handleUndo();
+              }
+          }
+    };
+
+    window.addEventListener('keydown', handleShortcuts);
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+        window.removeEventListener('keydown', handleShortcuts);
+        window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [applyFormat, isNovelMode, handleRedo, handleUndo, handlePrevScene, handleNextScene]); 
+
   if (!scene) return <div className="flex items-center justify-center h-full text-zinc-500 bg-zinc-950">No scene selected.</div>;
 
   return (
@@ -575,6 +813,25 @@ const Editor: React.FC = () => {
                 <span className="text-zinc-600 text-xs hidden sm:inline">/</span>
                 <span className="text-xs font-medium text-zinc-200 flex items-center gap-2 truncate">
                     <Film className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                    {/* Scene Navigation */}
+                    <div className="flex items-center gap-1 mx-1">
+                        <button 
+                            onClick={handlePrevScene} 
+                            disabled={!prevScene}
+                            className={`p-1 rounded transition ${!prevScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                            title="Previous Scene (Ctrl+Left)"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={handleNextScene} 
+                            disabled={!nextScene}
+                            className={`p-1 rounded transition ${!nextScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                            title="Next Scene (Ctrl+Right)"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
                     <span className="truncate">{isNovelMode ? 'Ch' : 'Sc'} {String(scene.number).padStart(3, '0')} - {scene.title}</span>
                 </span>
             </div>
@@ -615,7 +872,7 @@ const Editor: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth" id="editor-scroll">
             <div 
-                className="flex flex-col items-center py-8 gap-6 transition-transform duration-200 ease-in-out origin-top min-h-full"
+                className="flex flex-col items-center py-4 md:py-8 gap-6 transition-transform duration-200 ease-in-out origin-top min-h-full"
                 style={{ transform: `scale(${zoom})`, width: '100%' }}
             >
                 {pages.map((page, i) => (
@@ -636,6 +893,11 @@ const Editor: React.FC = () => {
                 <div className="h-32 flex-shrink-0" />
             </div>
         </div>
+        
+        {/* Floating Formatting Toolbar */}
+        {!isNovelMode && (
+            <FormattingToolbar onFormat={applyFormat} activeFormat={activeFormat} />
+        )}
 
         <style>{`
             .ai-ghost {

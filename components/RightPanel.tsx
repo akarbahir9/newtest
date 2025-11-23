@@ -2,11 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, Bot, AlertTriangle, PenTool, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, PanelRight
+  FileCheck, Replace, PanelRight, X
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { useProject } from '../context/ProjectContext';
+
+// Helper for unique IDs
+const generateId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+};
 
 // --- Markdown Parser Helper ---
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
@@ -160,7 +168,7 @@ const RightPanel: React.FC = () => {
 
   const executeCommand = async (command: string) => {
       if (isChatLoading) return;
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: command };
+      const userMsg: ChatMessage = { id: generateId(), role: 'user', text: command };
       setMessages(prev => [...prev, userMsg]);
       setIsChatLoading(true);
 
@@ -179,7 +187,7 @@ const RightPanel: React.FC = () => {
         );
         
         const modelMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+          id: generateId(),
           role: 'model',
           text: responseText
         };
@@ -314,10 +322,12 @@ const RightPanel: React.FC = () => {
   return (
     <aside 
         className={`
-            fixed md:relative inset-y-0 right-0 z-40
-            w-80 bg-zinc-925 border-l border-zinc-800/60 flex flex-col h-full flex-shrink-0 
-            transition-all duration-300 ease-in-out
+            fixed right-0 z-[60] md:z-40
+            w-full md:w-80 bg-zinc-925 border-l border-zinc-800/60 flex flex-col flex-shrink-0 
+            transition-all duration-300 ease-in-out md:relative shadow-2xl md:shadow-none
             ${isRightPanelOpen ? 'translate-x-0 mr-0' : 'translate-x-full md:translate-x-0 md:-mr-80'}
+            md:inset-y-0 bottom-0 top-12 md:top-0 
+            h-[calc(100dvh-3rem)] md:h-full 
         `}
     >
         
@@ -338,9 +348,10 @@ const RightPanel: React.FC = () => {
         <button 
             onClick={() => setRightPanelOpen(false)} 
             className="p-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition border-l border-zinc-800"
-            title="Collapse Panel"
+            title="Close Panel"
         >
-            <PanelRight className="w-4 h-4" />
+            <div className="md:hidden"><X className="w-4 h-4" /></div>
+            <div className="hidden md:block"><PanelRight className="w-4 h-4" /></div>
         </button>
       </div>
 
@@ -412,9 +423,9 @@ const RightPanel: React.FC = () => {
             </div>
 
             {/* Quick Actions - Fixed Area */}
-            <div className="p-3 border-t border-zinc-800/50 bg-zinc-925 flex-shrink-0 z-10">
+            <div className="p-2 md:p-3 border-t border-zinc-800/50 bg-zinc-925 flex-shrink-0 z-10">
                 <div className="text-xxs font-semibold text-zinc-500 uppercase mb-2 tracking-wider">Quick Actions</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1 md:gap-2">
                     <button 
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleQuickAction('check')}
@@ -463,12 +474,12 @@ const RightPanel: React.FC = () => {
       )}
 
       {/* Chat Input Area */}
-      <div className="p-3 border-t border-zinc-800 bg-zinc-900/30 flex-shrink-0">
+      <div className="p-2 md:p-3 border-t border-zinc-800 bg-zinc-900/30 flex-shrink-0">
         <div className="relative">
           <textarea 
             rows={2} 
             placeholder="Ask Zoer to expand, shorten, or analyze..." 
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 resize-none"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-base md:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 resize-none"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}

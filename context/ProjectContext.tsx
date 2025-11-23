@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode } from '../types';
 
+// Robust ID Generator to prevent React key collisions
+const generateId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+};
+
 // Initial Seed Data
 const SEED_PROJECT: Project = {
   id: 'proj-1',
@@ -88,8 +96,9 @@ interface ProjectContextType {
   ) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
+  importProject: (project: any) => void; // New import function
   addScene: (episodeId?: string) => void;
-  deleteScene: (sceneId: string) => void; // New function
+  deleteScene: (sceneId: string) => void; 
   updateSceneContent: (sceneId: string, content: string) => void;
   updateSceneSummary: (sceneId: string, summary: string) => void;
   addCharacter: (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => void;
@@ -155,8 +164,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       genres: string[], 
       metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }
   ) => {
-    const epId = Date.now().toString() + 'ep';
-    const sceneId = Date.now().toString() + 's';
+    const epId = generateId();
+    const sceneId = generateId();
     
     let initialScenes: Scene[] = [];
     let initialEpisodes: Episode[] = [];
@@ -187,7 +196,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
 
     const newProject: Project = {
-      id: Date.now().toString(),
+      id: generateId(),
       title, type, format, genres, ...metadata,
       updatedAt: new Date().toISOString(),
       scenes: initialScenes,
@@ -219,11 +228,28 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  const importProject = (projectData: any) => {
+      // Basic validation
+      if (!projectData.title || !projectData.scenes) {
+          alert("Invalid project file");
+          return;
+      }
+      
+      // Ensure we create a new ID to avoid collisions with existing projects if importing a backup
+      const newProject: Project = { 
+          ...projectData, 
+          id: generateId(),
+          updatedAt: new Date().toISOString()
+      };
+      
+      setProjects(prev => [...prev, newProject]);
+  };
+
   const addEpisode = () => {
       if (!currentProject || currentProject.type !== 'Serial') return;
       const nextNum = (currentProject.episodes?.length || 0) + 1;
       const newEp: Episode = {
-          id: Date.now().toString() + 'ep',
+          id: generateId(),
           title: `Episode ${nextNum}`,
           number: nextNum
       };
@@ -260,7 +286,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
 
     const newScene: Scene = {
-      id: Date.now().toString(),
+      id: generateId(),
       number: nextNum,
       title: newTitle,
       content: newContent,
@@ -328,7 +354,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addCharacter = (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => {
     if (!currentProject) return;
-    const newChar: Character = { ...char, id: Date.now().toString(), arcCompletion: 0, relationships: [] };
+    const newChar: Character = { ...char, id: generateId(), arcCompletion: 0, relationships: [] };
     const updatedProject = { ...currentProject, characters: [...currentProject.characters, newChar] };
     setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
   };
@@ -342,7 +368,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addLocation = (loc: Omit<Location, 'id'>) => {
     if (!currentProject) return;
-    const newLoc: Location = { ...loc, id: Date.now().toString() };
+    const newLoc: Location = { ...loc, id: generateId() };
     const updatedProject = { ...currentProject, locations: [...currentProject.locations, newLoc] };
     setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
   };
@@ -363,6 +389,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       addProject,
       updateProject,
       deleteProject,
+      importProject,
       addScene,
       deleteScene,
       updateSceneContent,

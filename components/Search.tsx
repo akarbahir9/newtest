@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Search as SearchIcon, FileText, User } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -6,7 +5,7 @@ import { useProject } from '../context/ProjectContext';
 const Search: React.FC = () => {
   const { navigateTo } = useProject();
   return (
-    <div className="view-section active flex-1 p-8 md:p-20 flex flex-col items-center justify-start h-full">
+    <div className="view-section active flex-1 p-4 md:p-20 flex flex-col items-center justify-start h-full">
       <div className="w-full max-w-2xl">
         <div className="relative mb-8">
           <SearchIcon className="absolute left-4 top-3.5 w-5 h-5 text-zinc-500" />
@@ -16,7 +15,7 @@ const Search: React.FC = () => {
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-12 pr-4 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 shadow-2xl" 
             autoFocus
           />
-          <div className="absolute right-3 top-2.5 px-2 py-1 bg-zinc-800 rounded text-xxs text-zinc-500 border border-zinc-700">Esc</div>
+          <div className="absolute right-3 top-2.5 px-2 py-1 bg-zinc-800 rounded text-xxs text-zinc-500 border border-zinc-700 hidden sm:block">Esc</div>
         </div>
         
         <div className="space-y-2">

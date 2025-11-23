@@ -57,7 +57,7 @@ const Outline: React.FC = () => {
                             <span className="md:hidden text-xs font-mono font-bold text-zinc-500">#{scene.number}</span>
                             <h3 className="text-sm font-medium text-zinc-200">{scene.title || 'UNTITLED SCENE'}</h3>
                         </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                        <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition">
                             <button onClick={() => handleDeleteScene(scene.id, scene.title)} className="text-red-500 hover:text-red-400">
                                 <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -91,7 +91,7 @@ const Outline: React.FC = () => {
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative bg-zinc-950">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-end mb-8 pl-8 md:pl-0">
+        <div className="flex justify-between items-end mb-8 pl-0 md:pl-0">
           <div className="flex items-center gap-4">
              <div>
                 <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Outline</h1>

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Image } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -40,8 +39,8 @@ const Locations: React.FC = () => {
           )}
 
           {currentProject.locations.map(loc => (
-            <div key={loc.id} className="flex gap-4 p-4 bg-zinc-900 border border-zinc-800 rounded-lg">
-                <div className="w-24 h-24 bg-zinc-800 rounded flex items-center justify-center text-zinc-600 flex-shrink-0">
+            <div key={loc.id} className="flex flex-col sm:flex-row gap-4 p-4 bg-zinc-900 border border-zinc-800 rounded-lg">
+                <div className="w-full sm:w-24 h-24 bg-zinc-800 rounded flex items-center justify-center text-zinc-600 flex-shrink-0">
                 <Image className="w-8 h-8" />
                 </div>
                 <div>

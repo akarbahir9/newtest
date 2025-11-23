@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Save, X } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -122,7 +121,7 @@ const Settings: React.FC = () => {
                     placeholder="One or two sentence summary of the story..."
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-zinc-500 mb-1">Theme</label>
                     <input 

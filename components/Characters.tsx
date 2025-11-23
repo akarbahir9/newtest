@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Edit2, Save, Trash2, Plus, ArrowRightLeft } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -70,7 +69,7 @@ const Characters: React.FC = () => {
         <div className="flex justify-between items-end mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Characters</h1>
-            <p className="text-sm text-zinc-500 mt-1">Manage character arcs, traits, and relationships for <span className="text-primary-400">{currentProject.title}</span>.</p>
+            <p className="text-sm text-zinc-500 mt-1 hidden sm:block">Manage character arcs, traits, and relationships for <span className="text-primary-400">{currentProject.title}</span>.</p>
           </div>
           <button 
             onClick={() => setShowModal(true)}
@@ -80,16 +79,16 @@ const Characters: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {currentProject.characters.length === 0 && (
-              <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-12 border border-zinc-800 border-dashed rounded-xl">
+              <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-12 border border-zinc-800 border-dashed rounded-xl">
                   <p className="text-zinc-500 text-sm">No characters yet. Create your protagonist!</p>
               </div>
           )}
           
           {currentProject.characters.map(char => (
             <div key={char.id} onClick={() => setEditingChar(char)} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition group cursor-pointer relative">
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+                <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
                     <button className="p-1 bg-zinc-950/50 rounded-full hover:bg-zinc-800 text-zinc-400">
                         <Edit2 className="w-3 h-3" />
                     </button>
@@ -188,7 +187,7 @@ const Characters: React.FC = () => {
                   
                   <div className="flex-1 overflow-y-auto p-6 space-y-6">
                       {/* Basic Info */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div>
                              <label className="block text-xs text-zinc-500 mb-1">Name</label>
                              <input value={editingChar.name} onChange={e => setEditingChar({...editingChar, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
@@ -233,8 +232,8 @@ const Characters: React.FC = () => {
                            
                            <div className="space-y-3">
                                {editingChar.relationships?.map((rel, i) => (
-                                   <div key={i} className="flex gap-2 items-start bg-zinc-900 p-2 rounded border border-zinc-800">
-                                       <div className="flex-1 grid grid-cols-2 gap-2">
+                                   <div key={i} className="flex flex-col sm:flex-row gap-2 items-start bg-zinc-900 p-2 rounded border border-zinc-800 relative">
+                                       <div className="flex-1 grid grid-cols-2 gap-2 w-full">
                                            <div>
                                                <label className="block text-[10px] text-zinc-600 mb-0.5">Relation To</label>
                                                <select 
@@ -265,7 +264,7 @@ const Characters: React.FC = () => {
                                                />
                                            </div>
                                        </div>
-                                       <button onClick={() => removeRelationship(i)} className="text-zinc-600 hover:text-red-400 p-1"><XIcon /></button>
+                                       <button onClick={() => removeRelationship(i)} className="absolute top-2 right-2 sm:relative sm:top-auto sm:right-auto text-zinc-600 hover:text-red-400 p-1"><XIcon /></button>
                                    </div>
                                ))}
                                {(!editingChar.relationships || editingChar.relationships.length === 0) && (
