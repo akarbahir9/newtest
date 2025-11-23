@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="ckb" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zoer.ai — AI-Powered Storytelling Platform</title>
+    <title>زۆری.ai — پلاتفۆرمی چیرۆکنووسینی زیرەک</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,6 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        // User requested "every single letter" use Noto Kufi Arabic
                         sans: ['Noto Kufi Arabic', 'sans-serif'],
                         mono: ['Noto Kufi Arabic', 'monospace'], 
                         screenplay: ['Noto Kufi Arabic', 'sans-serif'],
@@ -29,7 +28,6 @@
         }
     </script>
     <script>
-        // Polyfill process for browser environment to prevent 'process is not defined' errors
         window.process = window.process || { env: {} };
     </script>
     <style>
@@ -39,13 +37,14 @@
         ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
         
-        /* Screenplay Formatting Classes */
-        .sp-slug { font-weight: 600; text-transform: uppercase; margin-top: 2rem; margin-bottom: 0.5rem; color: #e4e4e7; }
-        .sp-action { margin-bottom: 1rem; color: #d4d4d8; line-height: 1.6; }
+        /* Screenplay Formatting Classes - Adjusted for RTL */
+        .sp-slug { font-weight: 600; text-transform: uppercase; margin-top: 2rem; margin-bottom: 0.5rem; color: #e4e4e7; text-align: right; }
+        .sp-action { margin-bottom: 1rem; color: #d4d4d8; line-height: 1.6; text-align: right; }
         .sp-character { text-align: center; width: 50%; margin: 1.5rem auto 0; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #e4e4e7; }
         .sp-dialogue { text-align: center; width: 70%; margin: 0 auto 1rem; color: #d4d4d8; line-height: 1.5; }
         .sp-parenthetical { text-align: center; width: 50%; margin: 0 auto; font-size: 0.9em; color: #a1a1aa; }
-        .sp-transition { text-align: right; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 1.5rem; color: #e4e4e7; }
+        /* Transition on Left for RTL scripts */
+        .sp-transition { text-align: left; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 1.5rem; color: #e4e4e7; }
         
         /* Ghost Text Animation */
         @keyframes ghost-pulse { 0% { opacity: 0.4; } 50% { opacity: 0.65; } 100% { opacity: 0.4; } }
@@ -71,7 +70,7 @@
 }
 </script>
 </head>
-<body class="bg-zinc-950 text-zinc-300 h-screen overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans">
+<body class="bg-zinc-950 text-zinc-300 h-screen overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans" dir="rtl">
     <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

@@ -61,28 +61,28 @@ const Characters: React.FC = () => {
      setEditingChar({ ...editingChar, traits: newTraits });
   };
 
-  if (!currentProject) return <div className="p-8 text-zinc-500">Please select a project.</div>;
+  if (!currentProject) return <div className="p-8 text-zinc-500">تکایە پڕۆژەیەک هەڵبژێرە.</div>;
 
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-end mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Characters</h1>
-            <p className="text-sm text-zinc-500 mt-1 hidden sm:block">Manage character arcs, traits, and relationships for <span className="text-primary-400">{currentProject.title}</span>.</p>
+            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">کاراکتەرەکان</h1>
+            <p className="text-sm text-zinc-500 mt-1 hidden sm:block">بەڕێوەبردنی کەسایەتییەکان بۆ <span className="text-primary-400">{currentProject.title}</span>.</p>
           </div>
           <button 
             onClick={() => setShowModal(true)}
-            className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-3 py-1.5 rounded shadow-sm transition flex-shrink-0 ml-2"
+            className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-3 py-1.5 rounded shadow-sm transition flex-shrink-0 mr-2"
           >
-            Add Character
+            زیادکردنی کاراکتەر
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {currentProject.characters.length === 0 && (
               <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-12 border border-zinc-800 border-dashed rounded-xl">
-                  <p className="text-zinc-500 text-sm">No characters yet. Create your protagonist!</p>
+                  <p className="text-zinc-500 text-sm">هیچ کاراکتەرێک نییە. پاڵەوانەکەت دروست بکە!</p>
               </div>
           )}
           
@@ -93,7 +93,7 @@ const Characters: React.FC = () => {
                         <Edit2 className="w-3 h-3" />
                     </button>
                 </div>
-                <div className="h-24 bg-gradient-to-br from-zinc-800 to-zinc-900 relative">
+                <div className="h-24 bg-gradient-to-bl from-zinc-800 to-zinc-900 relative">
                 <div className={`absolute bottom-0 left-4 transform translate-y-1/2 w-12 h-12 rounded-full border-4 border-zinc-900 flex items-center justify-center font-bold text-sm ${char.role === 'Protagonist' ? 'bg-zinc-200 text-zinc-900' : 'bg-primary-900 text-primary-200'}`}>
                     {char.name.substring(0, 2).toUpperCase()}
                 </div>
@@ -104,7 +104,7 @@ const Characters: React.FC = () => {
                     <h3 className="font-medium text-zinc-200">{char.name}</h3>
                     <p className="text-xs text-zinc-500">{char.role} • {char.archetype}</p>
                     </div>
-                    {char.role === 'Protagonist' && <div className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-medium border border-emerald-500/20">HERO</div>}
+                    {char.role === 'Protagonist' && <div className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-medium border border-emerald-500/20">پاڵەوان</div>}
                 </div>
                 
                 {/* Relationship Preview */}
@@ -122,7 +122,7 @@ const Characters: React.FC = () => {
                              {char.relationships.length > 2 && <span className="text-[10px] text-zinc-600">+{char.relationships.length - 2}</span>}
                          </div>
                     ) : (
-                        <p className="text-[10px] text-zinc-600 italic">No relationships defined.</p>
+                        <p className="text-[10px] text-zinc-600 italic">هیچ پەیوەندییەک نییە.</p>
                     )}
                 </div>
 
@@ -141,35 +141,35 @@ const Characters: React.FC = () => {
       {showModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
-                  <h3 className="text-lg font-medium text-zinc-100 mb-4">Add Character</h3>
+                  <h3 className="text-lg font-medium text-zinc-100 mb-4">زیادکردنی کاراکتەر</h3>
                   <form onSubmit={handleSubmit} className="space-y-4">
                       <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Name</label>
+                          <label className="block text-xs text-zinc-500 mb-1">ناو</label>
                           <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" required />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                          <div>
-                            <label className="block text-xs text-zinc-500 mb-1">Role</label>
+                            <label className="block text-xs text-zinc-500 mb-1">ڕۆڵ</label>
                             <select value={role} onChange={e => setRole(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none">
-                                <option>Protagonist</option>
-                                <option>Antagonist</option>
-                                <option>Ally</option>
-                                <option>Love Interest</option>
-                                <option>Mentor</option>
+                                <option value="Protagonist">پاڵەوان</option>
+                                <option value="Antagonist">دژە پاڵەوان</option>
+                                <option value="Ally">هاوکار</option>
+                                <option value="Love Interest">خۆشەویست</option>
+                                <option value="Mentor">ڕێنیشاندەر</option>
                             </select>
                          </div>
                          <div>
-                            <label className="block text-xs text-zinc-500 mb-1">Archetype</label>
-                            <input value={archetype} onChange={e => setArchetype(e.target.value)} placeholder="e.g. The Hero" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none" />
+                            <label className="block text-xs text-zinc-500 mb-1">ئارکیتایپ</label>
+                            <input value={archetype} onChange={e => setArchetype(e.target.value)} placeholder="نموونە: پاڵەوان" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none" />
                          </div>
                       </div>
                       <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Description</label>
+                          <label className="block text-xs text-zinc-500 mb-1">وەسف</label>
                           <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none h-20 resize-none" />
                       </div>
                       <div className="flex gap-2 justify-end pt-2">
-                          <button type="button" onClick={() => setShowModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">Cancel</button>
-                          <button type="submit" className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">Add</button>
+                          <button type="button" onClick={() => setShowModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
+                          <button type="submit" className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">زیادکردن</button>
                       </div>
                   </form>
               </div>
@@ -181,7 +181,7 @@ const Characters: React.FC = () => {
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
                   <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-                    <h3 className="text-lg font-medium text-zinc-100">Edit {editingChar.name}</h3>
+                    <h3 className="text-lg font-medium text-zinc-100">دەستکاری {editingChar.name}</h3>
                     <button onClick={() => setEditingChar(null)}><Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-500" /></button>
                   </div>
                   
@@ -189,25 +189,25 @@ const Characters: React.FC = () => {
                       {/* Basic Info */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div>
-                             <label className="block text-xs text-zinc-500 mb-1">Name</label>
+                             <label className="block text-xs text-zinc-500 mb-1">ناو</label>
                              <input value={editingChar.name} onChange={e => setEditingChar({...editingChar, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
                          </div>
                          <div>
-                             <label className="block text-xs text-zinc-500 mb-1">Archetype</label>
+                             <label className="block text-xs text-zinc-500 mb-1">ئارکیتایپ</label>
                              <input value={editingChar.archetype} onChange={e => setEditingChar({...editingChar, archetype: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
                          </div>
                       </div>
                       
                       <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Description</label>
+                          <label className="block text-xs text-zinc-500 mb-1">وەسف</label>
                           <textarea value={editingChar.description} onChange={e => setEditingChar({...editingChar, description: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none h-20 resize-none" />
                       </div>
 
                       {/* Traits */}
                       <div>
                           <div className="flex justify-between items-center mb-2">
-                             <label className="text-xs text-zinc-500">Traits</label>
-                             <button onClick={() => setEditingChar({...editingChar, traits: [...editingChar.traits, 'New Trait']})} className="text-xs text-primary-400 hover:text-primary-300">+ Add</button>
+                             <label className="text-xs text-zinc-500">سیفەتەکان</label>
+                             <button onClick={() => setEditingChar({...editingChar, traits: [...editingChar.traits, 'سیفەتی نوێ']})} className="text-xs text-primary-400 hover:text-primary-300">+ زیادکردن</button>
                           </div>
                           <div className="flex flex-wrap gap-2">
                               {editingChar.traits.map((t, i) => (
@@ -224,9 +224,9 @@ const Characters: React.FC = () => {
                       {/* Relationships */}
                       <div className="bg-zinc-950/50 rounded-lg p-4 border border-zinc-800">
                            <div className="flex justify-between items-center mb-3">
-                               <h4 className="text-sm font-medium text-zinc-300 flex items-center gap-2"><ArrowRightLeft className="w-3.5 h-3.5" /> Relationships</h4>
+                               <h4 className="text-sm font-medium text-zinc-300 flex items-center gap-2"><ArrowRightLeft className="w-3.5 h-3.5" /> پەیوەندییەکان</h4>
                                <button onClick={addRelationship} className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded flex items-center gap-1 border border-zinc-700">
-                                   <Plus className="w-3 h-3" /> Add Link
+                                   <Plus className="w-3 h-3" /> زیادکردنی بەستەر
                                </button>
                            </div>
                            
@@ -235,7 +235,7 @@ const Characters: React.FC = () => {
                                    <div key={i} className="flex flex-col sm:flex-row gap-2 items-start bg-zinc-900 p-2 rounded border border-zinc-800 relative">
                                        <div className="flex-1 grid grid-cols-2 gap-2 w-full">
                                            <div>
-                                               <label className="block text-[10px] text-zinc-600 mb-0.5">Relation To</label>
+                                               <label className="block text-[10px] text-zinc-600 mb-0.5">پەیوەندی لەگەڵ</label>
                                                <select 
                                                     value={rel.targetId} 
                                                     onChange={(e) => updateRelationship(i, 'targetId', e.target.value)}
@@ -247,11 +247,11 @@ const Characters: React.FC = () => {
                                                </select>
                                            </div>
                                            <div>
-                                               <label className="block text-[10px] text-zinc-600 mb-0.5">Type</label>
+                                               <label className="block text-[10px] text-zinc-600 mb-0.5">جۆر</label>
                                                <input 
                                                     value={rel.type}
                                                     onChange={(e) => updateRelationship(i, 'type', e.target.value)}
-                                                    placeholder="e.g. Sibling"
+                                                    placeholder="نموونە: خوشک/برا"
                                                     className="w-full bg-zinc-800 text-xs text-zinc-300 rounded border border-zinc-700 p-1"
                                                />
                                            </div>
@@ -259,25 +259,25 @@ const Characters: React.FC = () => {
                                                 <input 
                                                     value={rel.description || ''}
                                                     onChange={(e) => updateRelationship(i, 'description', e.target.value)}
-                                                    placeholder="Context (e.g. Secretly hates them...)"
+                                                    placeholder="تێبینی (نموونە: بە نهێنی ڕقی لێیەتی...)"
                                                     className="w-full bg-zinc-800 text-xs text-zinc-400 rounded border border-zinc-700 p-1"
                                                />
                                            </div>
                                        </div>
-                                       <button onClick={() => removeRelationship(i)} className="absolute top-2 right-2 sm:relative sm:top-auto sm:right-auto text-zinc-600 hover:text-red-400 p-1"><XIcon /></button>
+                                       <button onClick={() => removeRelationship(i)} className="absolute top-2 left-2 sm:relative sm:top-auto sm:left-auto text-zinc-600 hover:text-red-400 p-1"><XIcon /></button>
                                    </div>
                                ))}
                                {(!editingChar.relationships || editingChar.relationships.length === 0) && (
-                                   <p className="text-xs text-zinc-600 text-center italic py-2">No relationships yet.</p>
+                                   <p className="text-xs text-zinc-600 text-center italic py-2">هیچ پەیوەندییەک نییە.</p>
                                )}
                            </div>
                       </div>
                   </div>
 
                   <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900 rounded-b-xl">
-                      <button onClick={() => setEditingChar(null)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">Cancel</button>
+                      <button onClick={() => setEditingChar(null)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
                       <button onClick={handleEditSave} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded flex items-center gap-2">
-                          <Save className="w-3.5 h-3.5" /> Save Changes
+                          <Save className="w-3.5 h-3.5" /> پاشەکەوتکردن
                       </button>
                   </div>
               </div>

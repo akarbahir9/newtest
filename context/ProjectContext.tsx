@@ -9,67 +9,66 @@ const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
-// Initial Seed Data
+// Initial Seed Data (Kurdish)
 const SEED_PROJECT: Project = {
   id: 'proj-1',
-  title: 'The Last Signal',
+  title: 'دواین ئاماژە',
   type: 'Screenplay',
   format: 'Feature',
-  genres: ['Sci-Fi', 'Thriller', 'Psychological'],
-  logline: 'A stranded pilot and a glitching AI must cooperate to escape a dying ship before it falls into a black hole.',
-  theme: 'Trust vs. Logic',
-  setting: 'The USS Aegis, a derelict destroyer drifting in deep space.',
-  protagonistGoal: 'Restore power to the engines and escape.',
+  genres: ['خەیاڵی زانستی', 'هەستبزوێن', 'دەروونی'],
+  logline: 'فڕۆکەوانێکی گیرخواردوو و ژیری دەستکردێکی تێکچوو دەبێت هاوکاری یەکتر بکەن بۆ ڕزگاربوون لە کەشتییەک پێش ئەوەی بکەوێتە ناو کونی ڕەش.',
+  theme: 'متمانە بەرامبەر لۆژیک',
+  setting: 'کەشتی ئاسمانی ئیجیس',
+  protagonistGoal: 'گەڕاندنەوەی وزە بۆ بزوێنەرەکان و ڕزگاربوون.',
   updatedAt: new Date().toISOString(),
   characters: [
     { 
         id: 'c1', 
-        name: 'Aria', 
+        name: 'ئاریا', 
         role: 'Protagonist', 
-        archetype: 'The Survivor', 
+        archetype: 'ڕزگاربوو', 
         arcCompletion: 30, 
-        traits: ['Stubborn', 'Skilled'], 
-        description: 'A pilot stranded in deep space.',
-        relationships: [{ targetId: 'c2', type: 'Dependent', description: 'Needs AEGIS to survive' }] 
+        traits: ['کەلە ڕەق', 'لێهاتوو'], 
+        description: 'فڕۆکەوانێک لە بۆشایی ئاسمان گیر دەخوات.',
+        relationships: [{ targetId: 'c2', type: 'Dependent', description: 'پێویستی بە ئیجیسە بۆ مانەوە' }] 
     },
     { 
         id: 'c2', 
-        name: 'A.E.G.I.S', 
+        name: 'ئیجیس (AI)', 
         role: 'Ally/Antagonist', 
-        archetype: 'Artificial Intelligence', 
+        archetype: 'زیرەکی دەستکرد', 
         arcCompletion: 65, 
-        traits: ['Logical', 'Glitching'], 
-        description: 'The ship AI core, currently failing.',
-        relationships: [{ targetId: 'c1', type: 'Protector', description: ' programmed to save crew' }] 
+        traits: ['لۆژیکی', 'تێکچوو'], 
+        description: 'مێشکی کەشتییەکە، لە ئێستادا کێشەی هەیە.',
+        relationships: [{ targetId: 'c1', type: 'Protector', description: ' پرۆگرام کراوە بۆ پاراستن' }] 
     }
   ],
   locations: [
-    { id: 'l1', name: 'USS Aegis - Cockpit', type: 'INT', description: 'Cramped, utilitarian layout. Flickering holographic displays.' }
+    { id: 'l1', name: 'کەشتی ئیجیس - کۆکپیت', type: 'INT', description: 'تەنگ، شێوازی سەربازی. شاشەی هۆلۆگرافی دەتروسکێنەوە.' }
   ],
   scenes: [
     { 
       id: 's1', 
       number: 1, 
-      title: 'EXT. DEEP SPACE - SILENCE', 
-      content: `<div class="sp-slug">EXT. DEEP SPACE - SILENCE</div><div class="sp-action">The vast, infinite dark. Stars are cold, distant pinpricks.</div>`,
-      summary: 'Establishing shot of the derelict ship. We understand the isolation.'
+      title: 'دەرەوە. بۆشایی ئاسمان - بێدەنگی', 
+      content: `<div class="sp-slug">دەرەوە. بۆشایی ئاسمان - بێدەنگی</div><div class="sp-action">تاریکی بێ کۆتایی. ئەستێرەکان سارد و دوور دەردەکەون.</div>`,
+      summary: 'دیمەنی سەرەتا بۆ پیشاندانی کەشتییەکە. تەنیایی هەست پێ دەکرێت.'
     },
     { 
       id: 's2', 
       number: 2, 
-      title: 'INT. COCKPIT - CONTINUOUS', 
-      content: `<div class="sp-slug">INT. COCKPIT - CONTINUOUS</div>
-<div class="sp-action">Red emergency lights pulse in a rhythmic, suffocating beat.</div>
-<div class="sp-action"><span class="text-primary-400 border-b border-dashed border-primary-500/30 cursor-help" title="Character: Aria">ARIA (30s)</span> hangs suspended in her harness.</div>
-<div class="sp-character">ARIA</div>
-<div class="sp-parenthetical">(breathless)</div>
-<div class="sp-dialogue">Computer. Report.</div>`,
-      summary: 'Aria wakes up injured. The ship is failing. She tries to re-establish control.'
+      title: 'ناوەوە. کۆکپیت - بەردەوام', 
+      content: `<div class="sp-slug">ناوەوە. کۆکپیت - بەردەوام</div>
+<div class="sp-action">ڕووناکی سووری فریاگوزاری لێ دەدات.</div>
+<div class="sp-action"><span class="text-primary-400 border-b border-dashed border-primary-500/30 cursor-help" title="Character: Aria">ئاریا (٣٠ ساڵ)</span> بە قایشی کورسییەکەیەوە هەڵواسراوە.</div>
+<div class="sp-character">ئاریا</div>
+<div class="sp-parenthetical">(بە هەناسەبڕکێوە)</div>
+<div class="sp-dialogue">کۆمپیوتەر. ڕاپۆرت بدە.</div>`,
+      summary: 'ئاریا بە برینداری خەبەری دەبێتەوە. کەشتییەکە تێکچووە.'
     }
   ]
 };
 
-// Type for the confirmation modal state
 type ConfirmationState = {
   message: string;
   onConfirm: () => void;
@@ -96,7 +95,7 @@ interface ProjectContextType {
   ) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
-  importProject: (project: any) => void; // New import function
+  importProject: (project: any) => void; 
   addScene: (episodeId?: string) => void;
   deleteScene: (sceneId: string) => void; 
   updateSceneContent: (sceneId: string, content: string) => void;
@@ -106,7 +105,6 @@ interface ProjectContextType {
   addLocation: (loc: Omit<Location, 'id'>) => void;
   addEpisode: () => void;
   updateEpisode: (episodeId: string, title: string) => void;
-  // New confirmation modal functions
   confirmationState: ConfirmationState;
   showConfirmation: (message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
@@ -123,7 +121,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isSidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [isRightPanelOpen, setRightPanelOpen] = useState(true);
   
-  // State for confirmation modal
   const [confirmationState, setConfirmationState] = useState<ConfirmationState>(null);
 
   useEffect(() => {
@@ -171,7 +168,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     let initialEpisodes: Episode[] = [];
 
     if (type === 'Serial') {
-        initialEpisodes = [{ id: epId, title: 'Episode 1: Pilot', number: 1 }];
+        initialEpisodes = [{ id: epId, title: 'ئەڵقەی ١: سەرەتا', number: 1 }];
         initialScenes = [{ 
             id: sceneId, 
             number: 1, 
@@ -183,15 +180,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         initialScenes = [{ 
             id: sceneId, 
             number: 1, 
-            title: 'Chapter 1', 
-            content: '<div class="novel-chapter">Chapter 1</div><p>Start writing your chapter here...</p>' 
+            title: 'بەشی ١', 
+            content: '<div class="novel-chapter">بەشی ١</div><p>لێرەوە دەست بە نووسین بکە...</p>' 
         }];
     } else {
         initialScenes = [{ 
             id: sceneId, 
             number: 1, 
-            title: 'INT. LOCATION - DAY', 
-            content: '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action">Action description...</div>' 
+            title: 'ناوەوە. شوێن - ڕۆژ', 
+            content: '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action">وەسفی کردار...</div>' 
         }];
     }
 
@@ -229,13 +226,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const importProject = (projectData: any) => {
-      // Basic validation
       if (!projectData.title || !projectData.scenes) {
-          alert("Invalid project file");
+          alert("فایلی پڕۆژە هەڵەیە");
           return;
       }
       
-      // Ensure we create a new ID to avoid collisions with existing projects if importing a backup
       const newProject: Project = { 
           ...projectData, 
           id: generateId(),
@@ -250,7 +245,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const nextNum = (currentProject.episodes?.length || 0) + 1;
       const newEp: Episode = {
           id: generateId(),
-          title: `Episode ${nextNum}`,
+          title: `ئەڵقەی ${nextNum}`,
           number: nextNum
       };
       
@@ -275,14 +270,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
 
     const nextNum = currentProject.scenes.length + 1;
-    let newTitle = 'INT. LOCATION - DAY';
-    let newContent = '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action"></div>';
+    let newTitle = 'ناوەوە. شوێن - ڕۆژ';
+    let newContent = '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action"></div>';
 
     if (currentProject.type === 'Novel') {
-        newTitle = `Chapter ${nextNum}`;
-        newContent = `<div class="novel-chapter">Chapter ${nextNum}</div><p></p>`;
+        newTitle = `بەشی ${nextNum}`;
+        newContent = `<div class="novel-chapter">بەشی ${nextNum}</div><p></p>`;
     } else if (currentProject.type === 'Serial') {
-        newTitle = `Scene ${nextNum}`;
+        newTitle = `دیمەنی ${nextNum}`;
     }
 
     const newScene: Scene = {
@@ -308,12 +303,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       const updatedScenes = currentProject.scenes.filter(s => s.id !== sceneId);
 
-      // Handle active scene change
       if (currentSceneId === sceneId) {
           if (updatedScenes.length === 0) {
               setCurrentSceneId('');
           } else {
-              // Switch to previous or next scene
               const newIndex = Math.max(0, sceneIndex - 1);
               setCurrentSceneId(updatedScenes[newIndex].id);
           }

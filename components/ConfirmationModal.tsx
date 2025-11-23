@@ -23,7 +23,7 @@ const ConfirmationModal: React.FC = () => {
           <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center mb-3">
             <AlertTriangle className="w-6 h-6 text-red-500" />
           </div>
-          <h3 className="text-lg font-semibold text-zinc-100">Confirmation Required</h3>
+          <h3 className="text-lg font-semibold text-zinc-100">پێویستی بە ڕەزامەندییە</h3>
           <p className="text-sm text-zinc-400 mt-2">
             {message}
           </p>
@@ -34,13 +34,13 @@ const ConfirmationModal: React.FC = () => {
             onClick={hideConfirmation} 
             className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-4 py-2.5 rounded transition"
           >
-            Cancel
+            نەخێر
           </button>
           <button 
             onClick={handleConfirm} 
             className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-medium px-4 py-2.5 rounded transition shadow-lg shadow-red-900/20"
           >
-            Yes, Proceed
+            بەڵێ
           </button>
         </div>
       </div>

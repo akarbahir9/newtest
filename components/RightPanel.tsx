@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Wifi, Bot, AlertTriangle, PenTool, Mic2, 
+  Wifi, AlertTriangle, Pen, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, PanelRight, X
+  FileCheck, Replace, X
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -23,7 +23,6 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
     return parts.map((part, index) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         const inner = part.slice(2, -2);
-        // Heuristic: If it ends with ':' it's likely a key/label for data
         const isKey = inner.trim().endsWith(':');
         return (
             <strong 
@@ -45,7 +44,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
   const flushList = (keyPrefix: string) => {
     if (currentList.length > 0) {
         elements.push(
-            <ul key={`${keyPrefix}-ul`} className="mb-4 space-y-1.5 pl-1 text-zinc-300">
+            <ul key={`${keyPrefix}-ul`} className="mb-4 space-y-1.5 pr-1 text-zinc-300">
                 {currentList}
             </ul>
         );
@@ -68,7 +67,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
     } else {
       flushList(`pre-${i}`);
       
-      if (trimmed === '') return; // Skip empty lines
+      if (trimmed === '') return;
 
       if (line.startsWith('###')) {
          const text = line.replace(/^###\s*/, '');
@@ -78,10 +77,9 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
             </h3>
          );
       } else if (line.startsWith('**') && line.endsWith('**')) {
-         // Standalone bold line -> Subheader / Categorization
          const text = line.replace(/\*\*/g, '');
          elements.push(
-             <div key={`sh-${i}`} className="mt-4 mb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-emerald-500/50 pl-2">
+             <div key={`sh-${i}`} className="mt-4 mb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-r-2 border-emerald-500/50 pr-2">
                  {parseInline(text)}
              </div>
          );
@@ -103,11 +101,11 @@ const RightPanel: React.FC = () => {
   // Chat State
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'user', text: 'I need help with the pacing here.' },
+    { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم دیمەنە.' },
     { 
       id: '2', 
       role: 'model', 
-      text: 'I can help. Ask me to check the scene or suggest a rewrite.',
+      text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە یان پێشنیاری نووسینەوە بکەم.',
     }
   ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -131,7 +129,6 @@ const RightPanel: React.FC = () => {
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
 
-      // Compile full script content for memory
       const fullScriptHistory = currentProject?.scenes
         .sort((a, b) => a.number - b.number)
         .map(s => {
@@ -154,8 +151,6 @@ const RightPanel: React.FC = () => {
         ${charDetails || 'No characters defined.'}
 
         === FULL SCRIPT MEMORY ===
-        (Use the following content to answer questions about previous scenes, context, or to restore lost text. 
-        If the user asks "what happened in scene X", quote the text below.)
         
         ${fullScriptHistory}
         
@@ -179,7 +174,6 @@ const RightPanel: React.FC = () => {
           parts: [{ text: m.text }]
         }));
         
-        // Now passing contextString explicitly to the service
         const responseText = await generateAssistantResponse(
             history, 
             command,
@@ -200,17 +194,16 @@ const RightPanel: React.FC = () => {
   };
 
   const handleQuickAction = (type: 'check' | 'fix' | 'alternates') => {
-      // IMPORTANT: window.getSelection() works because we preventDefault onMouseDown of the button
       const selection = window.getSelection()?.toString().trim();
       let prompt = "";
 
       if (selection && selection.length > 0) {
           switch (type) {
               case 'check':
-                  prompt = `Analyze ONLY the following selected text for pacing, subtext, and impact. Provide specific feedback.\n\nSELECTED TEXT:\n"${selection}"`;
+                  prompt = `Analyze ONLY the following selected text for pacing, subtext, and impact. Provide specific feedback in Kurdish.\n\nSELECTED TEXT:\n"${selection}"`;
                   break;
               case 'fix':
-                  prompt = `Rewrite ONLY the selected text below to be punchier and more subtextual. Return ONLY the rewritten segment wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
+                  prompt = `Rewrite ONLY the selected text below to be punchier. Return ONLY the rewritten segment wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
                   break;
               case 'alternates':
                   prompt = `Generate 3 distinct alternate versions of ONLY the selected text below. Return them wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
@@ -219,10 +212,10 @@ const RightPanel: React.FC = () => {
       } else {
           switch (type) {
               case 'check':
-                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements. Use bold headers for categories.";
+                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements in Kurdish.";
                   break;
               case 'fix':
-                  prompt = "Rewrite the dialogue in this entire scene to be punchier and more subtextual. Wrap the result in <screenplay> tags.";
+                  prompt = "Rewrite the dialogue in this entire scene to be punchier. Wrap the result in <screenplay> tags.";
                   break;
               case 'alternates':
                   prompt = "Suggest 3 ways to rewrite this scene to increase conflict.";
@@ -262,7 +255,7 @@ const RightPanel: React.FC = () => {
   const handleReplace = (contentToInsert: string) => {
     if (!scene || !contentToInsert) return;
     
-    showConfirmation("This will replace the current scene content with the AI suggestion. This cannot be undone. Are you sure?", () => {
+    showConfirmation("ئەمە ناوەڕۆکی دیمەنەکە بە تەواوی دەگۆڕێت بە پێشنیارەکەی زیرەکی دەستکرد. ئەم کردارە پاشگەزبوونەوەی نییە. دڵنیایت؟", () => {
         const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
         updateSceneContent(scene.id, cleanContent);
     });
@@ -283,26 +276,26 @@ const RightPanel: React.FC = () => {
         return (
           <div key={index} className="my-3 relative group">
              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden relative">
-                <div className="absolute top-2 right-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => handleInsert(content)}
                         className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-600 flex items-center gap-1 shadow-lg backdrop-blur-sm transition-all"
-                        title="Append to Scene"
+                        title="زیادکردن بۆ دیمەن"
                     >
                         <FileInput className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold">APPEND</span>
+                        <span className="text-[10px] font-bold">زیادکردن</span>
                     </button>
                     <button 
                         onClick={() => handleReplace(content)}
                         className="p-1.5 bg-emerald-900/30 hover:bg-emerald-800/50 text-emerald-400 rounded border border-emerald-500/30 flex items-center gap-1 shadow-lg backdrop-blur-sm transition-all"
-                        title="Replace Scene Content"
+                        title="گۆڕینی دیمەن"
                     >
                         <Replace className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold">REPLACE</span>
+                        <span className="text-[10px] font-bold">گۆڕین</span>
                     </button>
                 </div>
                 <div 
-                    className="font-screenplay text-xs text-zinc-300 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar select-text cursor-text"
+                    className="font-screenplay text-xs text-zinc-300 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar select-text cursor-text text-right"
                     dangerouslySetInnerHTML={{ __html: content }}
                 />
              </div>
@@ -322,70 +315,71 @@ const RightPanel: React.FC = () => {
   return (
     <aside 
         className={`
-            fixed right-0 z-[60] md:z-40
-            w-full md:w-80 bg-zinc-925 border-l border-zinc-800/60 flex flex-col flex-shrink-0 
+            fixed left-0 z-[60] md:z-40
+            w-full md:w-80 bg-zinc-925 border-r border-zinc-800/60 flex flex-col flex-shrink-0 
             transition-all duration-300 ease-in-out md:relative shadow-2xl md:shadow-none
-            ${isRightPanelOpen ? 'translate-x-0 mr-0' : 'translate-x-full md:translate-x-0 md:-mr-80'}
+            ${isRightPanelOpen ? '-translate-x-0 ml-0' : '-translate-x-full md:translate-x-0'}
             md:inset-y-0 bottom-0 top-12 md:top-0 
             h-[calc(100dvh-3rem)] md:h-full 
         `}
     >
         
-      {/* Tabs with Close Button */}
+      {/* Tabs */}
       <div className="flex border-b border-zinc-800 relative items-center flex-shrink-0">
         <button 
           onClick={() => setActiveTab('assistant')} 
           className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'assistant' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
         >
-          Assistant
+          یاریدەدەر
         </button>
         <button 
           onClick={() => setActiveTab('visuals')} 
           className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'visuals' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
         >
-          Visuals
+          بینراوەکان
         </button>
         <button 
             onClick={() => setRightPanelOpen(false)} 
-            className="p-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition border-l border-zinc-800"
-            title="Close Panel"
+            className="md:hidden p-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition border-l border-zinc-800"
+            title="داخستن"
         >
-            <div className="md:hidden"><X className="w-4 h-4" /></div>
-            <div className="hidden md:block"><PanelRight className="w-4 h-4" /></div>
+            <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* CONTENT: ASSISTANT */}
       {activeTab === 'assistant' && (
         <>
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
-                {/* Current Context Card */}
+            {/* Fixed Context Header */}
+            <div className="p-4 pb-0 flex-shrink-0 z-10 bg-zinc-925">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                    <span className="text-xxs font-semibold text-zinc-500 uppercase">Active Context</span>
-                    <span className="text-xxs text-emerald-500 flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> Live</span>
+                    <span className="text-xxs font-semibold text-zinc-500 uppercase">دۆخی ئێستا</span>
+                    <span className="text-xxs text-emerald-500 flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> چالاک</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">SC {scene?.number || '?' }</span>
+                    <span className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">دیمەنی {scene?.number || '?' }</span>
                     {currentProject?.characters.slice(0, 2).map(c => (
                         <span key={c.id} className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">{c.name}</span>
                     ))}
                     </div>
                 </div>
+            </div>
 
-                {/* Chat */}
+            {/* Scrollable Chat Area */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4 custom-scrollbar">
                 <div className="space-y-4">
                     {messages.map((msg) => (
                     <div key={msg.id} className="flex gap-3">
                         {msg.role === 'user' ? (
                         <div className="w-6 h-6 rounded-full bg-zinc-700 flex-shrink-0 flex items-center justify-center text-xxs text-zinc-300">E</div>
                         ) : (
-                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Pen className="w-3.5 h-3.5" /></div>
                         )}
                         
                         <div className="space-y-1 w-full min-w-0">
                         <div className={`text-xs ${msg.role === 'user' ? 'text-zinc-400' : 'text-primary-400 font-medium'}`}>
-                            {msg.role === 'user' ? 'Elena R.' : 'Zoer Assistant'}
+                            {msg.role === 'user' ? 'ئێلێنا' : 'یاریدەدەری زۆری'}
                         </div>
                         
                         {msg.role === 'user' ? (
@@ -396,8 +390,8 @@ const RightPanel: React.FC = () => {
                                 <div className="flex items-start gap-2 mb-2 text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
                                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
                                 <div>
-                                    <span className="font-medium block mb-0.5">Contradiction Detected</span>
-                                    <span className="opacity-80">In Scene 001, Aria broke her <span className="underline decoration-amber-500/50">left arm</span>. Current scene describes her using both hands.</span>
+                                    <span className="font-medium block mb-0.5">ناکۆکی دۆزرایەوە</span>
+                                    <span className="opacity-80">لە دیمەنی ٠٠١، ئاریا دەستی شکا. لێرە هەردوو دەستی بەکاردەهێنێت.</span>
                                 </div>
                                 </div>
                             )}
@@ -411,10 +405,10 @@ const RightPanel: React.FC = () => {
                     ))}
                     {isChatLoading && (
                         <div className="flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Bot className="w-3.5 h-3.5" /></div>
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Pen className="w-3.5 h-3.5" /></div>
                         <div className="space-y-2 w-full">
-                            <div className="text-xs text-primary-400 font-medium">Zoer Assistant</div>
-                            <div className="text-xs text-zinc-500 animate-pulse">Thinking...</div>
+                            <div className="text-xs text-primary-400 font-medium">یاریدەدەری زۆری</div>
+                            <div className="text-xs text-zinc-500 animate-pulse">بیردەکاتەوە...</div>
                         </div>
                         </div>
                     )}
@@ -422,43 +416,39 @@ const RightPanel: React.FC = () => {
                 </div>
             </div>
 
-            {/* Quick Actions - Fixed Area */}
+            {/* Quick Actions */}
             <div className="p-2 md:p-3 border-t border-zinc-800/50 bg-zinc-925 flex-shrink-0 z-10">
-                <div className="text-xxs font-semibold text-zinc-500 uppercase mb-2 tracking-wider">Quick Actions</div>
-                <div className="grid grid-cols-2 gap-1 md:gap-2">
+                <div className="text-xxs font-semibold text-zinc-500 uppercase mb-2 tracking-wider">کردارە خێراکان</div>
+                <div className="grid grid-cols-2 gap-1.5 md:gap-2">
                     <button 
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleQuickAction('check')}
-                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
-                        title="Analyzes scene or selected text"
+                        className="flex flex-row items-center gap-2 p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded transition group text-right"
                     >
-                        <FileCheck className="w-3.5 h-3.5 text-orange-500 group-hover:text-orange-400" />
-                        <span className="text-xs font-medium text-zinc-300">Check Selection/Scene</span>
+                        <FileCheck className="w-3 h-3 text-orange-500 group-hover:text-orange-400 flex-shrink-0" />
+                        <span className="text-[10px] font-medium text-zinc-300">پشکنین</span>
                     </button>
                     <button 
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleQuickAction('fix')}
-                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left"
-                        title="Rewrites selected dialogue or scene dialogue"
+                        className="flex flex-row items-center gap-2 p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded transition group text-right"
                     >
-                        <Mic2 className="w-3.5 h-3.5 text-emerald-500 group-hover:text-emerald-400" />
-                        <span className="text-xs font-medium text-zinc-300">Fix Dialogue</span>
+                        <Mic2 className="w-3 h-3 text-emerald-500 group-hover:text-emerald-400 flex-shrink-0" />
+                        <span className="text-[10px] font-medium text-zinc-300">چاککردن</span>
                     </button>
                     <button 
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleQuickAction('alternates')}
-                        className="flex flex-col items-start gap-1 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-md transition group text-left col-span-2"
-                        title="Generates variations of selected text or scene"
+                        className="flex flex-row items-center justify-center gap-2 p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded transition group text-right col-span-2"
                     >
-                        <PenTool className="w-3.5 h-3.5 text-primary-500 group-hover:text-primary-400" />
-                        <span className="text-xs font-medium text-zinc-300">Generate Alternate Versions</span>
+                        <Pen className="w-3 h-3 text-primary-500 group-hover:text-primary-400 flex-shrink-0" />
+                        <span className="text-[10px] font-medium text-zinc-300">نووسینی جیاواز</span>
                     </button>
                 </div>
             </div>
         </>
       )}
 
-      {/* CONTENT: VISUALS */}
       {activeTab === 'visuals' && (
         <div className="flex-1 overflow-y-auto p-4">
              <div className="grid grid-cols-2 gap-2">
@@ -469,22 +459,22 @@ const RightPanel: React.FC = () => {
                      <Image className="w-6 h-6" />
                  </div>
              </div>
-             <p className="text-xxs text-zinc-500 text-center mt-2">Scene generation references</p>
+             <p className="text-xxs text-zinc-500 text-center mt-2">وێنەی دروستکراوی دیمەن</p>
         </div>
       )}
 
-      {/* Chat Input Area */}
+      {/* Chat Input */}
       <div className="p-2 md:p-3 border-t border-zinc-800 bg-zinc-900/30 flex-shrink-0">
         <div className="relative">
           <textarea 
             rows={2} 
-            placeholder="Ask Zoer to expand, shorten, or analyze..." 
+            placeholder="داوا لە زۆری بکە شیکاری بکات یان بنووسێت..." 
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-base md:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 resize-none"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
           ></textarea>
-          <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          <div className="absolute bottom-2 left-2 flex items-center gap-1">
             <button className="p-1 hover:bg-zinc-800 rounded text-zinc-500 transition"><Mic className="w-3 h-3" /></button>
             <button onClick={handleSend} className="p-1 bg-zinc-100 hover:bg-white text-zinc-950 rounded transition shadow-lg shadow-white/10"><ArrowUp className="w-3 h-3" /></button>
           </div>
@@ -492,9 +482,9 @@ const RightPanel: React.FC = () => {
         <div className="mt-2 flex justify-between items-center px-1">
              <div className="flex items-center gap-2">
                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                 <span className="text-xxs text-zinc-500 hidden sm:block">Model: Gemini 2.5</span>
+                 <span className="text-xxs text-zinc-500 hidden sm:block">مۆدێل: Gemini 2.5</span>
              </div>
-             <span className="text-xxs text-zinc-600">Cmd+K for commands</span>
+             <span className="text-xxs text-zinc-600">Cmd+K بۆ فرمانەکان</span>
         </div>
       </div>
     </aside>

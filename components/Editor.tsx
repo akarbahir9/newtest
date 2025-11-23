@@ -359,12 +359,12 @@ const FormattingToolbar: React.FC<{ onFormat: (cls: string) => void, activeForma
     
     // Config for each button style
     const buttons = [
-        { id: 'sp-slug', icon: MapPin, label: 'Slug', activeClass: 'bg-zinc-300 text-zinc-900', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+1' },
-        { id: 'sp-action', icon: AlignLeft, label: 'Action', activeClass: 'bg-zinc-600 text-white', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+2' },
-        { id: 'sp-character', icon: User, label: 'Char', activeClass: 'bg-blue-600 text-white', inactiveClass: 'text-blue-500 hover:text-blue-400 hover:bg-zinc-800', shortcut: 'Cmd+3' },
-        { id: 'sp-parenthetical', icon: Parentheses, label: 'Paren', activeClass: 'bg-amber-600 text-white', inactiveClass: 'text-amber-500 hover:text-amber-400 hover:bg-zinc-800', shortcut: 'Cmd+4' },
-        { id: 'sp-dialogue', icon: MessageSquare, label: 'Dial', activeClass: 'bg-emerald-600 text-white', inactiveClass: 'text-emerald-500 hover:text-emerald-400 hover:bg-zinc-800', shortcut: 'Cmd+5' },
-        { id: 'sp-transition', icon: ArrowRight, label: 'Trans', activeClass: 'bg-orange-600 text-white', inactiveClass: 'text-orange-500 hover:text-orange-400 hover:bg-zinc-800', shortcut: 'Cmd+6' },
+        { id: 'sp-slug', icon: MapPin, label: 'شوێن', activeClass: 'bg-zinc-300 text-zinc-900', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+1' },
+        { id: 'sp-action', icon: AlignLeft, label: 'کردار', activeClass: 'bg-zinc-600 text-white', inactiveClass: 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800', shortcut: 'Cmd+2' },
+        { id: 'sp-character', icon: User, label: 'کاراکتەر', activeClass: 'bg-blue-600 text-white', inactiveClass: 'text-blue-500 hover:text-blue-400 hover:bg-zinc-800', shortcut: 'Cmd+3' },
+        { id: 'sp-parenthetical', icon: Parentheses, label: 'کەوانە', activeClass: 'bg-amber-600 text-white', inactiveClass: 'text-amber-500 hover:text-amber-400 hover:bg-zinc-800', shortcut: 'Cmd+4' },
+        { id: 'sp-dialogue', icon: MessageSquare, label: 'دیالۆگ', activeClass: 'bg-emerald-600 text-white', inactiveClass: 'text-emerald-500 hover:text-emerald-400 hover:bg-zinc-800', shortcut: 'Cmd+5' },
+        { id: 'sp-transition', icon: ArrowRight, label: 'گواستنەوە', activeClass: 'bg-orange-600 text-white', inactiveClass: 'text-orange-500 hover:text-orange-400 hover:bg-zinc-800', shortcut: 'Cmd+6' },
     ];
 
     return (
@@ -756,12 +756,12 @@ const Editor: React.FC = () => {
         // Navigation Shortcuts
         if (e.key === 'ArrowLeft') {
             e.preventDefault();
-            handlePrevScene();
+            handleNextScene(); // In RTL, ArrowLeft is NEXT (Forward)
             return;
         }
         if (e.key === 'ArrowRight') {
             e.preventDefault();
-            handleNextScene();
+            handlePrevScene(); // In RTL, ArrowRight is PREV (Back)
             return;
         }
 
@@ -803,36 +803,36 @@ const Editor: React.FC = () => {
     };
   }, [applyFormat, isNovelMode, handleRedo, handleUndo, handlePrevScene, handleNextScene]); 
 
-  if (!scene) return <div className="flex items-center justify-center h-full text-zinc-500 bg-zinc-950">No scene selected.</div>;
+  if (!scene) return <div className="flex items-center justify-center h-full text-zinc-500 bg-zinc-950">هیچ دیمەنێک دیاری نەکراوە.</div>;
 
   return (
     <div className="view-section active flex-1 flex flex-col h-full bg-zinc-950 relative overflow-hidden">
         <header className="h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 flex-shrink-0 gap-2 shadow-sm">
             <div className="flex items-center gap-2 overflow-hidden">
-                <span onClick={() => navigateTo('dashboard')} className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition whitespace-nowrap hidden sm:inline ml-8 md:ml-0">Projects</span>
+                <span onClick={() => navigateTo('dashboard')} className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition whitespace-nowrap hidden sm:inline ml-8 md:ml-0">پڕۆژەکان</span>
                 <span className="text-zinc-600 text-xs hidden sm:inline">/</span>
                 <span className="text-xs font-medium text-zinc-200 flex items-center gap-2 truncate">
                     <Film className="w-3 h-3 text-zinc-500 flex-shrink-0" />
                     {/* Scene Navigation */}
                     <div className="flex items-center gap-1 mx-1">
                         <button 
-                            onClick={handlePrevScene} 
-                            disabled={!prevScene}
-                            className={`p-1 rounded transition ${!prevScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                            title="Previous Scene (Ctrl+Left)"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button 
                             onClick={handleNextScene} 
                             disabled={!nextScene}
                             className={`p-1 rounded transition ${!nextScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                            title="Next Scene (Ctrl+Right)"
+                            title="دیمەنی داهاتوو (Ctrl+Left)"
                         >
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronLeft className="w-4 h-4" /> {/* Next/Forward in RTL */}
+                        </button>
+                        <button 
+                            onClick={handlePrevScene} 
+                            disabled={!prevScene}
+                            className={`p-1 rounded transition ${!prevScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                            title="دیمەنی پێشوو (Ctrl+Right)"
+                        >
+                            <ChevronRight className="w-4 h-4" /> {/* Prev/Back in RTL */}
                         </button>
                     </div>
-                    <span className="truncate">{isNovelMode ? 'Ch' : 'Sc'} {String(scene.number).padStart(3, '0')} - {scene.title}</span>
+                    <span className="truncate">{isNovelMode ? 'بەشی' : 'دیمەنی'} {String(scene.number).padStart(3, '0')} - {scene.title}</span>
                 </span>
             </div>
             
@@ -843,7 +843,7 @@ const Editor: React.FC = () => {
                         onClick={handleUndo} 
                         disabled={historyIndex <= 0}
                         className={`p-1.5 rounded transition ${historyIndex > 0 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
-                        title="Undo (Cmd+Z)"
+                        title="گەڕانەوە (Cmd+Z)"
                     >
                         <Undo className="w-3.5 h-3.5" />
                     </button>
@@ -851,7 +851,7 @@ const Editor: React.FC = () => {
                         onClick={handleRedo}
                         disabled={historyIndex >= history.length - 1}
                         className={`p-1.5 rounded transition ${historyIndex < history.length - 1 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
-                        title="Redo (Cmd+Shift+Z)"
+                        title="هێنانەوە (Cmd+Shift+Z)"
                     >
                         <Redo className="w-3.5 h-3.5" />
                     </button>
@@ -860,13 +860,13 @@ const Editor: React.FC = () => {
                 {/* Zoom Controls */}
                 <div className="flex items-center bg-zinc-900 rounded-md border border-zinc-800 p-0.5 mx-2 hidden md:flex">
                     <button onClick={handleZoomOut} className="p-1.5 hover:bg-zinc-800 text-zinc-500 rounded"><ZoomOut className="w-3.5 h-3.5" /></button>
-                    <span onClick={handleZoomReset} className="text-[10px] w-10 text-center text-zinc-400 cursor-pointer font-mono select-none hover:text-zinc-200" title="Reset Zoom">{Math.round(zoom * 100)}%</span>
+                    <span onClick={handleZoomReset} className="text-[10px] w-10 text-center text-zinc-400 cursor-pointer font-mono select-none hover:text-zinc-200" title="ڕێکخستنەوەی قەبارە">{Math.round(zoom * 100)}%</span>
                     <button onClick={handleZoomIn} className="p-1.5 hover:bg-zinc-800 text-zinc-500 rounded"><ZoomIn className="w-3.5 h-3.5" /></button>
                 </div>
             </div>
 
             <div className="flex items-center gap-3 flex-shrink-0 w-8 md:w-0">
-               {/* Spacer to balance the hidden panel trigger on the right */}
+               {/* Spacer */}
             </div>
         </header>
 
@@ -898,24 +898,6 @@ const Editor: React.FC = () => {
         {!isNovelMode && (
             <FormattingToolbar onFormat={applyFormat} activeFormat={activeFormat} />
         )}
-
-        <style>{`
-            .ai-ghost {
-                color: #818cf8; 
-                opacity: 0.7;
-                pointer-events: none;
-                display: inline;
-                font-style: italic;
-            }
-            .screenplay-mode .sp-slug { color: #e4e4e7; font-weight: bold; text-decoration: underline; margin-top: 1.5rem; text-transform: uppercase; }
-            .screenplay-mode .sp-action { color: #d4d4d8; margin-bottom: 1rem; line-height: 1.6; }
-            .screenplay-mode .sp-character { color: #e4e4e7; margin-top: 1rem; text-align: center; width: 50%; margin-left: auto; margin-right: auto; font-weight: 600; text-transform: uppercase; }
-            .screenplay-mode .sp-dialogue { color: #d4d4d8; margin-bottom: 1rem; text-align: center; width: 75%; margin-left: auto; margin-right: auto; }
-            .screenplay-mode .sp-parenthetical { color: #a1a1aa; text-align: center; margin-bottom: 0; font-size: 0.9em; }
-            .screenplay-mode .sp-transition { color: #e4e4e7; text-align: right; margin-right: 1rem; text-transform: uppercase; }
-            .novel-mode .novel-chapter { font-size: 1.5em; font-weight: bold; text-align: center; margin-bottom: 2rem; margin-top: 1rem; color: #e4e4e7; }
-            .novel-mode p { text-indent: 2rem; margin-bottom: 1rem; line-height: 1.8; color: #d4d4d8; }
-        `}</style>
     </div>
   );
 };

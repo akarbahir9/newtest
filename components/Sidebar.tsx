@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
-  FolderOpen, Book, Users, MapPin, Settings, FilePlus, X, Tv, ChevronDown, ChevronRight, Trash2, PanelLeft
+  FolderOpen, Book, Users, MapPin, Settings, X, Tv, Trash2, PanelRight
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { ViewType } from '../types';
@@ -22,8 +22,10 @@ const Sidebar: React.FC = () => {
   };
 
   const getItemClass = (view: ViewType) => {
-    const base = "sidebar-item flex items-center gap-2 px-2 py-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 rounded text-xs font-medium transition cursor-pointer";
-    return currentView === view ? "bg-zinc-800/50 text-zinc-100" : base;
+    const common = "sidebar-item flex flex-row items-center gap-2 px-2 py-1.5 rounded text-xs font-medium transition cursor-pointer whitespace-nowrap overflow-hidden w-full flex-nowrap";
+    return currentView === view 
+        ? `${common} bg-zinc-800/50 text-zinc-100` 
+        : `${common} text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30`;
   };
 
   const isNovel = currentProject?.type === 'Novel';
@@ -31,7 +33,7 @@ const Sidebar: React.FC = () => {
 
   const handleDeleteScene = (e: React.MouseEvent, sceneId: string, sceneTitle: string) => {
       e.stopPropagation();
-      showConfirmation(`Are you sure you want to delete "${sceneTitle || 'Untitled'}"?`, () => {
+      showConfirmation(`دڵنیایت لە سڕینەوەی "${sceneTitle || 'بێ ناونیشان'}"؟`, () => {
           deleteScene(sceneId);
       });
   };
@@ -39,18 +41,18 @@ const Sidebar: React.FC = () => {
   return (
     <aside 
         className={`
-            fixed inset-y-0 left-0 z-[70] h-full
-            border-r border-zinc-800/60 bg-zinc-925
+            fixed inset-y-0 right-0 z-[70] h-full
+            border-l border-zinc-800/60 bg-zinc-925
             transition-all duration-300 ease-in-out flex-shrink-0
             md:relative
             ${isSidebarOpen 
                 ? 'translate-x-0 w-64' 
-                : '-translate-x-full md:translate-x-0 w-64 md:w-0 md:border-r-0 md:overflow-hidden'}
+                : 'translate-x-full md:translate-x-0 w-64'}
         `}
     >
-      <div className={`flex flex-col h-full w-64 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`flex flex-col h-full w-64 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
         {/* Brand & Project Switcher */}
-        <div className="relative"> 
+        <div className="relative flex-shrink-0"> 
             <div 
                 className="h-12 flex items-center px-4 border-b border-zinc-800/60 justify-between" 
             >
@@ -59,22 +61,13 @@ const Sidebar: React.FC = () => {
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 >
                     <div className="w-5 h-5 bg-zinc-100 rounded-sm flex items-center justify-center text-zinc-950 text-xs font-bold shrink-0">Z</div>
-                    <span className="truncate">{currentProject?.title || 'Select Project'}</span>
+                    <span className="truncate">{currentProject?.title || 'پڕۆژە هەڵبژێرە'}</span>
                     <ChevronsUpDown className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                 </div>
                 
-                {/* Desktop Collapse Button */}
-                <button 
-                    className="hidden md:flex p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded transition ml-2"
-                    onClick={() => setSidebarOpen(false)}
-                    title="Collapse Sidebar"
-                >
-                    <PanelLeft className="w-4 h-4" />
-                </button>
-
                 {/* Mobile Close Button */}
                 <button 
-                    className="md:hidden text-zinc-500 hover:text-zinc-200 ml-2"
+                    className="md:hidden text-zinc-500 hover:text-zinc-200 mr-2"
                     onClick={() => setSidebarOpen(false)}
                 >
                     <X className="w-5 h-5" />
@@ -82,7 +75,7 @@ const Sidebar: React.FC = () => {
             </div>
             
             {isDropdownOpen && (
-                <div className="absolute top-full left-0 w-full bg-zinc-900 border border-zinc-800 shadow-xl rounded-b-md py-1 z-50">
+                <div className="absolute top-full right-0 w-full bg-zinc-900 border border-zinc-800 shadow-xl rounded-b-md py-1 z-50">
                     {projects.map(p => (
                         <div 
                             key={p.id}
@@ -95,7 +88,7 @@ const Sidebar: React.FC = () => {
                     ))}
                     <div className="border-t border-zinc-800 mt-1 pt-1">
                         <div onClick={() => { navigateTo('dashboard'); setIsDropdownOpen(false); }} className="px-4 py-2 text-xs text-primary-400 hover:bg-zinc-800 cursor-pointer font-medium">
-                            + New Project
+                            + پڕۆژەی نوێ
                         </div>
                     </div>
                 </div>
@@ -103,30 +96,33 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Primary Nav */}
-        <div className="px-2 py-3 space-y-0.5">
+        <div className="px-2 py-3 space-y-0.5 flex-shrink-0">
             <div onClick={() => navigateTo('dashboard')} className={getItemClass('dashboard')}>
-            <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                <LayoutDashboard className="w-3.5 h-3.5 flex-shrink-0" /> 
+                <span className="truncate">داشبۆرد</span>
             </div>
             <div onClick={() => navigateTo('search')} className={getItemClass('search')}>
-            <Search className="w-3.5 h-3.5" /> Search
+                <Search className="w-3.5 h-3.5 flex-shrink-0" /> 
+                <span className="truncate">گەڕان</span>
             </div>
             <div onClick={() => navigateTo('inbox')} className={getItemClass('inbox')}>
-            <Inbox className="w-3.5 h-3.5" /> Inbox 
-            <span className="ml-auto bg-primary-600 text-white text-[9px] px-1.5 rounded-full">3</span>
+                <Inbox className="w-3.5 h-3.5 flex-shrink-0" /> 
+                <span className="truncate">نامەدان</span>
+                <span className="mr-auto bg-primary-600 text-white text-[9px] px-1.5 rounded-full flex-shrink-0">3</span>
             </div>
         </div>
 
         {/* Project Tree */}
         {currentProject && (
-            <div className="flex-1 overflow-y-auto py-2 px-2">
+            <div className="flex-1 overflow-y-auto py-2 px-2 custom-scrollbar">
                 <div className="text-xxs font-semibold text-zinc-500 uppercase tracking-wider px-2 mb-2 flex justify-between items-center group">
-                Project Structure
+                پێکهاتەی پڕۆژە
                 {isSerial ? (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); addEpisode(); }} 
                         className="bg-transparent p-0 border-none cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition text-inherit flex items-center" 
-                        title="Add Episode"
+                        title="زیادکردنی ئەڵقە"
                     >
                         <Plus className="w-3 h-3" />
                     </button>
@@ -135,7 +131,7 @@ const Sidebar: React.FC = () => {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); addScene(); }} 
                         className="bg-transparent p-0 border-none cursor-pointer opacity-0 group-hover:opacity-100 hover:text-zinc-300 transition text-inherit flex items-center" 
-                        title={isNovel ? "Add Chapter" : "Add Scene"}
+                        title={isNovel ? "زیادکردنی بەش" : "زیادکردنی دیمەن"}
                     >
                         <Plus className="w-3 h-3" />
                     </button>
@@ -143,21 +139,21 @@ const Sidebar: React.FC = () => {
                 </div>
                 
                 <div className="group">
-                <div onClick={() => setIsProjectOpen(!isProjectOpen)} className="flex items-center gap-2 px-2 py-1.5 text-zinc-200 rounded text-xs font-medium cursor-pointer hover:bg-zinc-800/30">
-                    <FolderOpen className={`w-3.5 h-3.5 text-primary-500 transition-transform ${isProjectOpen ? 'rotate-90' : ''}`} /> 
-                    {currentProject.title}
+                <div onClick={() => setIsProjectOpen(!isProjectOpen)} className="flex items-center gap-2 px-2 py-1.5 text-zinc-200 rounded text-xs font-medium cursor-pointer hover:bg-zinc-800/30 whitespace-nowrap">
+                    <FolderOpen className={`w-3.5 h-3.5 text-primary-500 transition-transform flex-shrink-0 ${isProjectOpen ? 'rotate-90' : ''}`} /> 
+                    <span className="truncate">{currentProject.title}</span>
                 </div>
                 
                 {isProjectOpen && (
-                    <div className="pl-4 mt-1 space-y-0.5 border-l border-zinc-800 ml-3.5 transition-all overflow-hidden">
+                    <div className="pr-4 mt-1 space-y-0.5 border-r border-zinc-800 mr-3.5 transition-all overflow-hidden">
                     <div onClick={() => navigateTo('outline')} className={getItemClass('outline')}>
-                        <Book className="w-3 h-3" /> Outline
+                        <Book className="w-3 h-3 flex-shrink-0" /> <span className="truncate">پوختە</span>
                     </div>
                     <div onClick={() => navigateTo('characters')} className={getItemClass('characters')}>
-                        <Users className="w-3 h-3" /> Characters
+                        <Users className="w-3 h-3 flex-shrink-0" /> <span className="truncate">کاراکتەرەکان</span>
                     </div>
                     <div onClick={() => navigateTo('locations')} className={getItemClass('locations')}>
-                        <MapPin className="w-3 h-3" /> Locations
+                        <MapPin className="w-3 h-3 flex-shrink-0" /> <span className="truncate">شوێنەکان</span>
                     </div>
                     <div className="mt-2 pt-2 border-t border-zinc-800/50">
                         {isSerial ? (
@@ -167,32 +163,26 @@ const Sidebar: React.FC = () => {
                                     const isExpanded = expandedEpisodes[ep.id] !== false; 
                                     return (
                                         <div key={ep.id} className="mb-1">
-                                            <div className="flex items-center justify-between px-2 py-1 text-zinc-400 hover:bg-zinc-800/20 rounded cursor-pointer group/ep" onClick={() => toggleEpisode(ep.id)}>
-                                                <div className="flex items-center gap-1.5 text-xs overflow-hidden">
-                                                    <Tv className="w-3 h-3 text-zinc-600" />
-                                                    <span className="truncate font-medium text-zinc-300">{ep.title}</span>
+                                            <div className="flex items-center justify-between px-2 py-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 rounded cursor-pointer group/ep" onClick={() => toggleEpisode(ep.id)}>
+                                                <div className="flex items-center gap-1 overflow-hidden">
+                                                    <Tv className="w-3 h-3 flex-shrink-0" />
+                                                    <span className="text-xs truncate">{ep.title}</span>
                                                 </div>
-                                                <div className="flex items-center">
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => { e.stopPropagation(); addScene(ep.id); if (!isExpanded) toggleEpisode(ep.id); }} 
-                                                        className="bg-transparent p-0 border-none mr-1 opacity-0 group-hover/ep:opacity-100 hover:text-white flex items-center text-inherit cursor-pointer" 
-                                                        title="Add Scene to Ep"
-                                                    >
-                                                        <Plus className="w-3 h-3" />
-                                                    </button>
-                                                    {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                                </div>
+                                                <button onClick={(e) => { e.stopPropagation(); addScene(ep.id); }} className="opacity-0 group-hover/ep:opacity-100 hover:text-zinc-100"><Plus className="w-3 h-3" /></button>
                                             </div>
                                             {isExpanded && (
-                                                <div className="pl-3 border-l border-zinc-800/50 ml-2 mt-0.5 space-y-0.5">
+                                                <div className="pr-3 mt-0.5 space-y-0.5 border-r border-zinc-800 mr-1.5">
                                                     {epScenes.map(scene => (
-                                                        <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`group/scene flex items-center justify-between gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                                                            <span className="truncate">{scene.title || 'Untitled Scene'}</span>
-                                                            <Trash2 onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="w-3 h-3 text-zinc-600 hover:text-red-500 opacity-0 group-hover/scene:opacity-100 flex-shrink-0" />
+                                                        <div 
+                                                            key={scene.id}
+                                                            onClick={() => { setCurrentSceneId(scene.id); navigateTo('editor'); }}
+                                                            className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-pointer w-full group/scene ${currentSceneId === scene.id ? 'bg-zinc-800/50 text-primary-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'}`}
+                                                        >
+                                                            <span className="w-4 text-center text-[9px] font-mono opacity-50 flex-shrink-0">{scene.number}</span>
+                                                            <span className="truncate flex-1 text-right">{scene.title}</span>
+                                                            <button onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="opacity-0 group-hover/scene:opacity-100 hover:text-red-400 p-0.5"><Trash2 className="w-2.5 h-2.5" /></button>
                                                         </div>
                                                     ))}
-                                                    {epScenes.length === 0 && <div className="text-[10px] text-zinc-600 px-2 italic">No scenes</div>}
                                                 </div>
                                             )}
                                         </div>
@@ -200,21 +190,19 @@ const Sidebar: React.FC = () => {
                                 })}
                             </div>
                         ) : (
-                            <>
-                                <div className="px-2 text-xxs text-zinc-600 mb-1 flex justify-between">
-                                    {isNovel ? 'CHAPTERS' : 'SCENES'}
-                                    <FilePlus className="w-3 h-3 cursor-pointer hover:text-primary-400" onClick={(e) => { e.stopPropagation(); addScene(); }} />
-                                </div>
-                                {currentProject.scenes.map((scene) => (
-                                    <div key={scene.id} onClick={() => { navigateTo('editor'); setCurrentSceneId(scene.id); }} className={`group/scene flex items-center justify-between gap-2 px-2 py-1 rounded text-xs cursor-pointer ${currentSceneId === scene.id && currentView === 'editor' ? 'text-zinc-100 bg-zinc-800/40' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'}`}>
-                                        <div className="flex items-center gap-2 truncate">
-                                        <span className={`font-mono text-xxs w-4 ${currentSceneId === scene.id ? 'text-primary-500' : 'text-zinc-600'}`}>{String(scene.number).padStart(3, '0')}</span> 
-                                        <span className="truncate">{scene.title || 'UNTITLED'}</span>
-                                        </div>
-                                        <Trash2 onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="w-3 h-3 text-zinc-600 hover:text-red-500 opacity-0 group-hover/scene:opacity-100 flex-shrink-0" />
+                            <div>
+                                {currentProject.scenes.map(scene => (
+                                    <div 
+                                        key={scene.id}
+                                        onClick={() => { setCurrentSceneId(scene.id); navigateTo('editor'); }}
+                                        className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-pointer w-full group/scene ${currentSceneId === scene.id ? 'bg-zinc-800/50 text-primary-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'}`}
+                                    >
+                                        <span className="w-4 text-center text-[9px] font-mono opacity-50 flex-shrink-0">{scene.number}</span>
+                                        <span className="truncate flex-1 text-right">{scene.title || 'بێ ناونیشان'}</span>
+                                        <button onClick={(e) => handleDeleteScene(e, scene.id, scene.title)} className="opacity-0 group-hover/scene:opacity-100 hover:text-red-400 p-0.5"><Trash2 className="w-2.5 h-2.5" /></button>
                                     </div>
                                 ))}
-                            </>
+                            </div>
                         )}
                     </div>
                     </div>
@@ -223,15 +211,9 @@ const Sidebar: React.FC = () => {
             </div>
         )}
 
-        {/* Bottom: Usage & Profile */}
-        <div className="p-3 border-t border-zinc-800/60 bg-zinc-950/30">
-            <div onClick={() => navigateTo('settings')} className="flex items-center gap-2 cursor-pointer group">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-xxs text-white border border-zinc-600">EL</div>
-            <div className="flex flex-col">
-                <span className="text-xs text-zinc-200 font-medium group-hover:text-white">Elena R.</span>
-                <span className="text-xxs text-zinc-500">Pro Plan</span>
-            </div>
-            <Settings className="w-3.5 h-3.5 ml-auto text-zinc-500 hover:text-zinc-300" />
+        <div className="p-2 mt-auto border-t border-zinc-800 flex-shrink-0">
+            <div onClick={() => navigateTo('settings')} className={getItemClass('settings')}>
+            <Settings className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">ڕێکخستنەکان</span>
             </div>
         </div>
       </div>

@@ -11,21 +11,19 @@ export const generateAssistantResponse = async (
     const model = 'gemini-2.5-flash';
     
     // Truncate context if excessive to prevent browser XHR errors (code 6)
-    // 100,000 chars is roughly 25-30k tokens, which is safe for most network conditions
-    // while still utilizing a good chunk of Flash's context window.
     const safeContext = projectContext ? projectContext.slice(0, 100000) : '';
 
-    let systemInstruction = `You are Zoer, an advanced AI story assistant. 
+    let systemInstruction = `You are Zoer, an advanced AI story assistant. You speak and write primarily in Kurdish (Sorani).
         
     CRITICAL FORMATTING RULES:
     1. When asked to write, rewrite, or generate scene content, you MUST enclose the actual screenplay text within <screenplay> and </screenplay> tags.
-    2. Inside these tags, use HTML with the following classes for "Hollywood Standard" formatting:
-       - <div class="sp-slug">INT./EXT. SLUG - DAY</div>
+    2. Inside these tags, use HTML with the following classes for "Hollywood Standard" formatting (but with Kurdish Content):
+       - <div class="sp-slug">NAW./DER. SHWÊN - KAT (ROJ/SHEW)</div> (Use Kurdish slugs: NAWEWE/DEREWE)
        - <div class="sp-action">Action description here...</div>
        - <div class="sp-character">CHARACTER NAME</div>
        - <div class="sp-parenthetical">(wryly)</div>
        - <div class="sp-dialogue">Dialogue goes here.</div>
-       - <div class="sp-transition">CUT TO:</div>
+       - <div class="sp-transition">CUT TO:</div> (Use Kurdish Transition if appropriate, or English standard)
     3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
     
     MODES OF OPERATION:
@@ -39,7 +37,7 @@ export const generateAssistantResponse = async (
 
     B. SCENE MODE (General):
     If the user asks to "check", "review", "analyze", or "critique" the scene (and NO selected text is provided):
-    1. First, provide a bulleted list of feedback (Pacing, Dialogue, Conflict, formatting).
+    1. First, provide a bulleted list of feedback (Pacing, Dialogue, Conflict, formatting) in Kurdish.
     2. Then, provide a "SUGGESTED REWRITE" or "IMPROVED VERSION" block.
     3. This rewrite block MUST be wrapped in <screenplay> tags.
 
@@ -49,6 +47,7 @@ export const generateAssistantResponse = async (
     - Use **Bold** keys (e.g., **Name:**) for structured data.
     - Use bullet points (*) for lists.
     - Be concise and visually clean.
+    - Respond in Kurdish (Sorani).
     `;
 
     if (safeContext) {
@@ -64,10 +63,10 @@ export const generateAssistantResponse = async (
     });
 
     const response = await chat.sendMessage({ message });
-    return response.text || "I couldn't generate a response.";
+    return response.text || "نەمتوانی وەڵامێک دروست بکەم.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Sorry, I encountered an error connecting to the AI service. The context might be too large or there is a network issue.";
+    return "ببورە، کێشەیەک هەیە لە پەیوەندیکردن بە خزمەتگوزاری زیرەکی دەستکرد. ڕەنگە دەقەکە زۆر گەورە بێت یان کێشەی ئینتەرنێت هەبێت.";
   }
 };
 
@@ -92,10 +91,10 @@ export const generateAutocomplete = async (
     const isTrailingSpace = cleanText.endsWith(' ');
     
     // Context Slice
-    const textSlice = cleanText.slice(-600) || "The story begins with";
+    const textSlice = cleanText.slice(-600) || "سەرەتای چیرۆکەکە";
 
     // Optimized Prompt
-    const prompt = `Complete the following sentence naturally. 
+    const prompt = `Complete the following sentence naturally in Kurdish (Sorani). 
     
     CONTEXT:
     Genre: ${context.genre}
@@ -105,7 +104,7 @@ export const generateAutocomplete = async (
     "${textSlice}"
     
     INSTRUCTIONS:
-    - Provide ONLY the next 3-8 words.
+    - Provide ONLY the next 3-8 words in Kurdish.
     - Do NOT repeat the input text.
     - Do NOT wrap in quotes.
     - Do NOT add comments.
@@ -129,9 +128,6 @@ export const generateAutocomplete = async (
     suggestion = suggestion.replace(/^["']|["']$/g, '');
     
     // Space Handling:
-    // If the editor has a trailing space (user typed "word "), we usually want the next word "next".
-    // If the editor is "word", we usually want " next".
-    // Since we usually trigger on space, `isTrailingSpace` is typically true.
     if (!suggestion.startsWith(' ') && !isTrailingSpace && !/^[.,;?!]/.test(suggestion)) {
         suggestion = ' ' + suggestion;
     }
@@ -145,14 +141,13 @@ export const generateAutocomplete = async (
 
 export const generateStructuredSuggestions = async (context: string): Promise<any> => {
   try {
-    // Truncate context for suggestions as well
     const safeContext = context.slice(0, 100000);
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `You are a sophisticated story engine. Analyze the provided metadata and scene content.
       
-      Generate 4 distinct types of suggestions based on the context:
+      Generate 4 distinct types of suggestions in Kurdish (Sorani) based on the context:
       1. Plot: Next beats or scene ideas.
       2. Character: How characters should react or develop.
       3. World: Sensory details or lore to add.
