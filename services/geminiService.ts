@@ -90,33 +90,40 @@ export const generateAutocomplete = async (
     const cleanText = currentText.replace(/\u00A0/g, ' ');
     const isTrailingSpace = cleanText.endsWith(' ');
     
-    // Context Slice
-    const textSlice = cleanText.slice(-600) || "سەرەتای چیرۆکەکە";
+    // Context Slice - ensure we capture enough RTL context
+    // Taking the last 1200 chars to be safe for context window and RTL flow
+    const textSlice = cleanText.slice(-1200) || "سەرەتای چیرۆکەکە";
 
-    // Optimized Prompt
-    const prompt = `Complete the following sentence naturally in Kurdish (Sorani). 
+    // Optimized Prompt for Kurdish Sorani
+    const prompt = `You are a creative writing assistant for Kurdish (Sorani).
+    
+    TASK: Continue the story text naturally.
     
     CONTEXT:
     Genre: ${context.genre}
     Style: ${context.style}
+    Current Scene Goal: ${context.goal || 'Advance the plot'}
     
-    INPUT TEXT:
+    INPUT TEXT (End of current scene):
     "${textSlice}"
     
     INSTRUCTIONS:
-    - Provide ONLY the next 3-8 words in Kurdish.
-    - Do NOT repeat the input text.
-    - Do NOT wrap in quotes.
-    - Do NOT add comments.
-    - Return text suitable for inline autocomplete.`;
+    1. Generate the immediate next 3-10 words in Kurdish (Sorani).
+    2. Maintain the tone and style of the input.
+    3. Do NOT repeat the last word of the input.
+    4. Do NOT start with a space if the input already ends with one.
+    5. Return ONLY the completion text. No explanations.
+    6. If the input is dialogue (inside quotes), complete the dialogue.
+    7. If the input is action, complete the action description.
+    `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        maxOutputTokens: 20, 
-        temperature: 0.3,
-        stopSequences: ["<"], // Only stop on HTML tags to allow punctuation
+        maxOutputTokens: 30, // Increased slightly
+        temperature: 0.45, // Increased for creativity
+        stopSequences: ["<", "\n", "["], // Stop on new block or HTML
       }
     });
     
@@ -128,7 +135,9 @@ export const generateAutocomplete = async (
     suggestion = suggestion.replace(/^["']|["']$/g, '');
     
     // Space Handling:
-    if (!suggestion.startsWith(' ') && !isTrailingSpace && !/^[.,;?!]/.test(suggestion)) {
+    // If the input didn't end with a space, and the suggestion doesn't start with punctuation, add a space.
+    // Added Kurdish punctuation checks (، ؛ ؟)
+    if (!suggestion.startsWith(' ') && !isTrailingSpace && !/^[.,;?!،؛؟]/.test(suggestion)) {
         suggestion = ' ' + suggestion;
     }
     
@@ -164,7 +173,8 @@ export const generateStructuredSuggestions = async (context: string): Promise<an
         "complication": "A single paragraph describing a major complication."
       }
       
-      For the 'complication', make it dramatic.`,
+      For the 'complication', make it dramatic.
+      ENSURE ALL TEXT VALUES ARE IN KURDISH (SORANI).`,
       config: {
         responseMimeType: 'application/json',
         temperature: 0.7,

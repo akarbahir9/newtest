@@ -200,25 +200,25 @@ const RightPanel: React.FC = () => {
       if (selection && selection.length > 0) {
           switch (type) {
               case 'check':
-                  prompt = `Analyze ONLY the following selected text for pacing, subtext, and impact. Provide specific feedback in Kurdish.\n\nSELECTED TEXT:\n"${selection}"`;
+                  prompt = `Analyze ONLY the following selected text for pacing, subtext, and impact. Provide specific feedback in Kurdish (Sorani).\n\nSELECTED TEXT:\n"${selection}"`;
                   break;
               case 'fix':
-                  prompt = `Rewrite ONLY the selected text below to be punchier. Return ONLY the rewritten segment wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
+                  prompt = `Rewrite ONLY the selected text below to be punchier in Kurdish (Sorani). Return ONLY the rewritten segment wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
                   break;
               case 'alternates':
-                  prompt = `Generate 3 distinct alternate versions of ONLY the selected text below. Return them wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
+                  prompt = `Generate 3 distinct alternate versions of ONLY the selected text below in Kurdish (Sorani). Return them wrapped in <screenplay> tags.\n\nSELECTED TEXT:\n"${selection}"`;
                   break;
           }
       } else {
           switch (type) {
               case 'check':
-                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements in Kurdish.";
+                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements in Kurdish (Sorani).";
                   break;
               case 'fix':
-                  prompt = "Rewrite the dialogue in this entire scene to be punchier. Wrap the result in <screenplay> tags.";
+                  prompt = "Rewrite the dialogue in this entire scene to be punchier in Kurdish (Sorani). Wrap the result in <screenplay> tags.";
                   break;
               case 'alternates':
-                  prompt = "Suggest 3 ways to rewrite this scene to increase conflict.";
+                  prompt = "Suggest 3 ways to rewrite this scene to increase conflict, in Kurdish (Sorani).";
                   break;
           }
       }
