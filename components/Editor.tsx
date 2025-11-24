@@ -375,7 +375,7 @@ const FormattingToolbar: React.FC<{ onFormat: (cls: string) => void, activeForma
     ];
 
     return (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.6)] flex items-center gap-1 z-[60] animate-in fade-in slide-in-from-bottom-4 w-auto max-w-[95vw] overflow-x-auto no-scrollbar touch-pan-x">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.6)] flex items-center gap-1 z-[60] animate-in fade-in slide-in-from-bottom-4 w-auto max-w-[95vw] overflow-x-auto no-scrollbar touch-pan-x mb-[env(safe-area-inset-bottom)]">
             {buttons.map((btn, idx) => {
                 const isActive = activeFormat === btn.id;
                 return (
@@ -814,7 +814,7 @@ const Editor: React.FC = () => {
 
   return (
     <div className="view-section active flex-1 flex flex-col h-full bg-zinc-950 relative overflow-hidden">
-        <header className="h-14 w-full flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 flex-shrink-0 shadow-sm">
+        <header className="flex-shrink-0 w-full flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 shadow-sm h-auto min-h-[3.5rem] pt-[env(safe-area-inset-top)] pb-2 transition-all">
             
             {/* 1. Title Section (Left/Start) */}
             <div className="flex items-center gap-4 flex-1 overflow-hidden">

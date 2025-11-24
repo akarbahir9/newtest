@@ -3,7 +3,17 @@
 <html lang="ckb" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- PWA / Native App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Zoer.ai">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#09090b">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn.lucide.dev/icon-192.png">
+
     <title>زۆری.ai — پلاتفۆرمی چیرۆکنووسینی زیرەک</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,6 +47,8 @@
             overscroll-behavior: none;
             touch-action: pan-x pan-y;
             overflow: hidden; /* Prevent body scroll, handle specific scrolling in containers */
+            height: 100dvh; /* Use dynamic viewport height for mobile browsers */
+            width: 100%;
         }
 
         /* GLOBALLY HIDE SCROLLBARS */
@@ -62,6 +74,10 @@
         /* Ghost Text Animation */
         @keyframes ghost-pulse { 0% { opacity: 0.4; } 50% { opacity: 0.65; } 100% { opacity: 0.4; } }
         .ai-ghost { color: #818cf8; animation: ghost-pulse 2.5s infinite ease-in-out; }
+
+        /* Safe Area Padding Support */
+        .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-pt { padding-top: env(safe-area-inset-top); }
     </style>
 <script type="importmap">
 {
@@ -79,7 +95,7 @@
 }
 </script>
 </head>
-<body class="bg-zinc-950 text-zinc-300 fixed inset-0 w-full h-full overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans overscroll-none" dir="rtl">
+<body class="bg-zinc-950 text-zinc-300 fixed inset-0 w-full h-[100dvh] overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans overscroll-none" dir="rtl">
     <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

@@ -325,6 +325,7 @@ const RightPanel: React.FC = () => {
                 : '-translate-x-full'}
             bottom-0 top-12 
             h-[calc(100dvh-3rem)]
+            pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
         `}
     >
         
