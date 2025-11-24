@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Pen } from 'lucide-react';
+import { Menu, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import RightPanel from './components/RightPanel';
 import Editor from './components/Editor';
@@ -76,7 +76,7 @@ const MainLayout: React.FC = () => {
                 className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
                 title="Toggle AI Chat"
             >
-                <Pen className="w-5 h-5" />
+                <Sparkles className="w-5 h-5" />
             </button>
         </div>
 

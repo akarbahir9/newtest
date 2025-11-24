@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Wifi, AlertTriangle, Pen, Mic2, 
+  Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, X
+  FileCheck, Replace
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -316,9 +316,11 @@ const RightPanel: React.FC = () => {
     <aside 
         className={`
             fixed left-0 z-[60] md:z-40
-            w-full md:w-80 bg-zinc-925 border-r border-zinc-800/60 flex flex-col flex-shrink-0 
+            bg-zinc-925 flex flex-col flex-shrink-0 
             transition-all duration-300 ease-in-out md:relative shadow-2xl md:shadow-none
-            ${isRightPanelOpen ? '-translate-x-0 ml-0' : '-translate-x-full md:translate-x-0'}
+            ${isRightPanelOpen 
+                ? '-translate-x-0 ml-0 w-full md:w-80 border-r border-zinc-800/60' 
+                : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-r-0'}
             md:inset-y-0 bottom-0 top-12 md:top-0 
             h-[calc(100dvh-3rem)] md:h-full 
         `}
@@ -337,13 +339,6 @@ const RightPanel: React.FC = () => {
           className={`flex-1 py-3 text-xs font-medium border-b-2 transition ${activeTab === 'visuals' ? 'border-primary-500 text-zinc-200 bg-zinc-900/30' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'}`}
         >
           بینراوەکان
-        </button>
-        <button 
-            onClick={() => setRightPanelOpen(false)} 
-            className="md:hidden p-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition border-l border-zinc-800"
-            title="داخستن"
-        >
-            <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -374,7 +369,7 @@ const RightPanel: React.FC = () => {
                         {msg.role === 'user' ? (
                         <div className="w-6 h-6 rounded-full bg-zinc-700 flex-shrink-0 flex items-center justify-center text-xxs text-zinc-300">E</div>
                         ) : (
-                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Pen className="w-3.5 h-3.5" /></div>
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Sparkles className="w-3.5 h-3.5" /></div>
                         )}
                         
                         <div className="space-y-1 w-full min-w-0">
@@ -405,7 +400,7 @@ const RightPanel: React.FC = () => {
                     ))}
                     {isChatLoading && (
                         <div className="flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Pen className="w-3.5 h-3.5" /></div>
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex-shrink-0 flex items-center justify-center text-xxs text-white"><Sparkles className="w-3.5 h-3.5" /></div>
                         <div className="space-y-2 w-full">
                             <div className="text-xs text-primary-400 font-medium">یاریدەدەری زۆری</div>
                             <div className="text-xs text-zinc-500 animate-pulse">بیردەکاتەوە...</div>
@@ -441,7 +436,7 @@ const RightPanel: React.FC = () => {
                         onClick={() => handleQuickAction('alternates')}
                         className="flex flex-row items-center justify-center gap-2 p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded transition group text-right col-span-2"
                     >
-                        <Pen className="w-3 h-3 text-primary-500 group-hover:text-primary-400 flex-shrink-0" />
+                        <Sparkles className="w-3 h-3 text-primary-500 group-hover:text-primary-400 flex-shrink-0" />
                         <span className="text-[10px] font-medium text-zinc-300">نووسینی جیاواز</span>
                     </button>
                 </div>

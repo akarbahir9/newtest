@@ -2,7 +2,7 @@
 <html lang="ckb" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>زۆری.ai — پلاتفۆرمی چیرۆکنووسینی زیرەک</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +31,13 @@
         window.process = window.process || { env: {} };
     </script>
     <style>
+        /* Global Overscroll Prevention */
+        html, body {
+            overscroll-behavior: none;
+            touch-action: pan-x pan-y;
+            overflow: hidden; /* Prevent body scroll, handle specific scrolling in containers */
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -70,7 +77,7 @@
 }
 </script>
 </head>
-<body class="bg-zinc-950 text-zinc-300 h-screen overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans" dir="rtl">
+<body class="bg-zinc-950 text-zinc-300 h-screen overflow-hidden selection:bg-primary-500/30 selection:text-primary-100 font-sans overscroll-none" dir="rtl">
     <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

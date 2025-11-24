@@ -139,13 +139,14 @@ const Dashboard: React.FC = () => {
             /* Screenplay Formatting Overrides for Black Text and RTL */
             .sp-slug { 
                 font-weight: bold; 
-                text-transform: uppercase; 
+                text-transform: none !important; 
                 margin-top: 24px; 
                 margin-bottom: 8px; 
                 font-size: 14px; 
                 line-height: 1.2; 
                 text-align: right; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             .sp-action { 
                 margin-bottom: 12px; 
@@ -153,40 +154,50 @@ const Dashboard: React.FC = () => {
                 font-size: 14px; 
                 text-align: right; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             .sp-character { 
                 text-align: center; 
-                width: 60%; 
-                margin: 18px auto 0; 
-                text-transform: uppercase; 
+                width: 60%;
+                margin: 18px auto 0 auto;
+                padding: 0;
                 font-weight: bold; 
                 font-size: 14px; 
                 line-height: 1.2; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
+                text-transform: none !important;
             }
             .sp-dialogue { 
                 text-align: center; 
-                width: 80%; 
-                margin: 0 auto 12px; 
+                width: 70%;
+                margin: 0 auto 12px auto;
+                padding: 0;
                 line-height: 1.2; 
                 font-size: 14px; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             .sp-parenthetical { 
                 text-align: center; 
+                width: 50%;
+                margin: 0 auto;
+                padding: 0;
                 font-size: 12px; 
                 margin-bottom: 0; 
                 line-height: 1.2; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             .sp-transition { 
                 text-align: left; /* Left for End in RTL */
-                text-transform: uppercase; 
+                text-transform: none !important; 
                 margin-top: 18px; 
                 margin-bottom: 18px; 
                 font-size: 14px; 
                 line-height: 1.2; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             .novel-chapter { 
                 font-size: 24px; 
@@ -196,6 +207,7 @@ const Dashboard: React.FC = () => {
                 margin-top: 40px; 
                 page-break-before: always; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             p { 
                 margin-bottom: 12px; 
@@ -203,6 +215,7 @@ const Dashboard: React.FC = () => {
                 text-indent: 24px; 
                 font-size: 14px; 
                 color: #000000 !important;
+                letter-spacing: normal !important;
             }
             
             .title-page-content {
@@ -237,6 +250,8 @@ const Dashboard: React.FC = () => {
                          if (el.style) {
                              el.style.color = '#000000';
                              el.style.borderColor = '#000000';
+                             // Ensure letter spacing is reset for all elements in the clone
+                             el.style.letterSpacing = 'normal';
                          }
                     });
                 }
@@ -269,7 +284,7 @@ const Dashboard: React.FC = () => {
         titlePage.className = 'pdf-page';
         titlePage.innerHTML = `
             <div class="title-page-content">
-                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase;">${project.title}</h1>
+                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 10px; text-transform: none; letter-spacing: normal;">${project.title}</h1>
                 <p style="font-size: 14px; margin-bottom: 40px; color: #000;">فۆرماتی ${project.type}</p>
                 <div style="height: 40px;"></div>
                 <p style="font-size: 12px; color: #333;">نووسراوە لەلایەن</p>
@@ -280,7 +295,8 @@ const Dashboard: React.FC = () => {
         wrapper.appendChild(titlePage);
         
         await document.fonts.ready;
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Increased timeout to ensure fonts and layout settle for RTL
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         await addPageToPDF(titlePage); 
         wrapper.removeChild(titlePage);

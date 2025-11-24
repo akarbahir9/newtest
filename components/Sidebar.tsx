@@ -42,12 +42,12 @@ const Sidebar: React.FC = () => {
     <aside 
         className={`
             fixed inset-y-0 right-0 z-[70] h-full
-            border-l border-zinc-800/60 bg-zinc-925
+            bg-zinc-925
             transition-all duration-300 ease-in-out flex-shrink-0
             md:relative
             ${isSidebarOpen 
-                ? 'translate-x-0 w-64' 
-                : 'translate-x-full md:translate-x-0 w-64'}
+                ? 'translate-x-0 w-64 border-l border-zinc-800/60' 
+                : 'translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-l-0'}
         `}
     >
       <div className={`flex flex-col h-full w-64 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
@@ -64,14 +64,6 @@ const Sidebar: React.FC = () => {
                     <span className="truncate">{currentProject?.title || 'پڕۆژە هەڵبژێرە'}</span>
                     <ChevronsUpDown className="w-4 h-4 text-zinc-500 flex-shrink-0" />
                 </div>
-                
-                {/* Mobile Close Button */}
-                <button 
-                    className="md:hidden text-zinc-500 hover:text-zinc-200 mr-2"
-                    onClick={() => setSidebarOpen(false)}
-                >
-                    <X className="w-5 h-5" />
-                </button>
             </div>
             
             {isDropdownOpen && (

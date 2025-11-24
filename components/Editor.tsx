@@ -330,7 +330,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
     };
 
     return (
-        <div className="relative group mb-4 md:mb-8 flex-shrink-0 flex flex-col items-center">
+        <div className="relative group flex-shrink-0 flex flex-col items-center">
             <div 
                 ref={pageRef}
                 contentEditable
@@ -808,73 +808,82 @@ const Editor: React.FC = () => {
 
   return (
     <div className="view-section active flex-1 flex flex-col h-full bg-zinc-950 relative overflow-hidden">
-        <header className="h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 flex-shrink-0 gap-2 shadow-sm">
-            <div className="flex items-center gap-2 overflow-hidden">
-                <span onClick={() => navigateTo('dashboard')} className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition whitespace-nowrap hidden sm:inline ml-8 md:ml-0">پڕۆژەکان</span>
-                <span className="text-zinc-600 text-xs hidden sm:inline">/</span>
-                <span className="text-xs font-medium text-zinc-200 flex items-center gap-2 truncate">
-                    <Film className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                    {/* Scene Navigation */}
-                    <div className="flex items-center gap-1 mx-1">
-                        <button 
-                            onClick={handleNextScene} 
-                            disabled={!nextScene}
-                            className={`p-1 rounded transition ${!nextScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                            title="دیمەنی داهاتوو (Ctrl+Left)"
-                        >
-                            <ChevronLeft className="w-4 h-4" /> {/* Next/Forward in RTL */}
-                        </button>
-                        <button 
-                            onClick={handlePrevScene} 
-                            disabled={!prevScene}
-                            className={`p-1 rounded transition ${!prevScene ? 'text-zinc-800 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                            title="دیمەنی پێشوو (Ctrl+Right)"
-                        >
-                            <ChevronRight className="w-4 h-4" /> {/* Prev/Back in RTL */}
-                        </button>
-                    </div>
-                    <span className="truncate">{isNovelMode ? 'بەشی' : 'دیمەنی'} {String(scene.number).padStart(3, '0')} - {scene.title}</span>
-                </span>
-            </div>
+        <header className="h-14 w-full flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm z-10 flex-shrink-0 shadow-sm">
             
-            <div className="flex items-center">
-                {/* Undo/Redo Controls */}
-                <div className="flex items-center gap-1 mx-2">
+            {/* 1. Title Section (Left/Start) */}
+            <div className="flex items-center gap-4 flex-1 overflow-hidden">
+                <div className="flex items-center gap-2 text-zinc-500 text-xs flex-shrink-0">
+                     <span onClick={() => navigateTo('dashboard')} className="hover:text-zinc-200 cursor-pointer transition hidden md:inline">پڕۆژەکان</span>
+                     <span className="hidden md:inline">/</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                    <Film className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                    <span className="text-sm font-bold text-zinc-200 truncate" title={scene.title}>
+                        {isNovelMode ? 'بەشی' : 'دیمەنی'} {String(scene.number).padStart(3, '0')} - {scene.title}
+                    </span>
+                </div>
+            </div>
+
+            {/* 2. Navigation Section (Center) */}
+            <div className="flex items-center justify-center gap-2 flex-shrink-0 mx-4">
+                <button 
+                    onClick={handleNextScene} 
+                    disabled={!nextScene}
+                    className={`p-1.5 rounded-full border transition ${!nextScene ? 'border-zinc-800 text-zinc-800 cursor-not-allowed' : 'border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 hover:border-zinc-600'}`}
+                    title="دیمەنی داهاتوو (Ctrl+Left)"
+                >
+                    <ChevronRight className="w-4 h-4" /> {/* Flipped: Next is now Right icon */}
+                </button>
+                
+                <span className="text-xs font-mono text-zinc-600 select-none min-w-[3ch] text-center">{scene.number}</span>
+
+                <button 
+                    onClick={handlePrevScene} 
+                    disabled={!prevScene}
+                    className={`p-1.5 rounded-full border transition ${!prevScene ? 'border-zinc-800 text-zinc-800 cursor-not-allowed' : 'border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 hover:border-zinc-600'}`}
+                    title="دیمەنی پێشوو (Ctrl+Right)"
+                >
+                    <ChevronLeft className="w-4 h-4" /> {/* Flipped: Prev is now Left icon */}
+                </button>
+            </div>
+
+            {/* 3. Tools Section (Right/End) */}
+            <div className="flex items-center justify-end gap-3 flex-1">
+                {/* Undo/Redo */}
+                <div className="flex items-center bg-zinc-900 rounded-lg border border-zinc-800 p-0.5">
                     <button 
                         onClick={handleUndo} 
                         disabled={historyIndex <= 0}
-                        className={`p-1.5 rounded transition ${historyIndex > 0 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
+                        className={`p-1.5 rounded-md transition ${historyIndex > 0 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
                         title="گەڕانەوە (Cmd+Z)"
                     >
-                        <Undo className="w-3.5 h-3.5" />
+                        <Undo className="w-4 h-4 scale-x-[-1]" /> {/* Flipped horizontally */}
                     </button>
+                    <div className="w-px h-4 bg-zinc-800"></div>
                     <button 
                         onClick={handleRedo}
                         disabled={historyIndex >= history.length - 1}
-                        className={`p-1.5 rounded transition ${historyIndex < history.length - 1 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
+                        className={`p-1.5 rounded-md transition ${historyIndex < history.length - 1 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
                         title="هێنانەوە (Cmd+Shift+Z)"
                     >
-                        <Redo className="w-3.5 h-3.5" />
+                        <Redo className="w-4 h-4 scale-x-[-1]" /> {/* Flipped horizontally */}
                     </button>
                 </div>
 
-                {/* Zoom Controls */}
-                <div className="flex items-center bg-zinc-900 rounded-md border border-zinc-800 p-0.5 mx-2 hidden md:flex">
-                    <button onClick={handleZoomOut} className="p-1.5 hover:bg-zinc-800 text-zinc-500 rounded"><ZoomOut className="w-3.5 h-3.5" /></button>
-                    <span onClick={handleZoomReset} className="text-[10px] w-10 text-center text-zinc-400 cursor-pointer font-mono select-none hover:text-zinc-200" title="ڕێکخستنەوەی قەبارە">{Math.round(zoom * 100)}%</span>
-                    <button onClick={handleZoomIn} className="p-1.5 hover:bg-zinc-800 text-zinc-500 rounded"><ZoomIn className="w-3.5 h-3.5" /></button>
+                {/* Zoom - Always visible */}
+                <div className="flex items-center bg-zinc-900 rounded-lg border border-zinc-800 p-0.5">
+                    <button onClick={handleZoomOut} className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-md"><ZoomOut className="w-3.5 h-3.5" /></button>
+                    <span onClick={handleZoomReset} className="text-[10px] w-8 text-center text-zinc-500 cursor-pointer select-none hover:text-zinc-300">{Math.round(zoom * 100)}%</span>
+                    <button onClick={handleZoomIn} className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-md"><ZoomIn className="w-3.5 h-3.5" /></button>
                 </div>
-            </div>
-
-            <div className="flex items-center gap-3 flex-shrink-0 w-8 md:w-0">
-               {/* Spacer */}
             </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth" id="editor-scroll">
+        <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth custom-scrollbar" id="editor-scroll">
+            {/* Removed py-6 and gap-6, added min-h-full to ensure bg color covers viewport */}
             <div 
-                className="flex flex-col items-center py-4 md:py-8 gap-6 transition-transform duration-200 ease-in-out origin-top min-h-full"
-                style={{ transform: `scale(${zoom})`, width: '100%' }}
+                className="flex flex-col items-center py-4 gap-4 transition-transform duration-200 ease-in-out origin-top w-full min-h-full"
+                style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
             >
                 {pages.map((page, i) => (
                     <Page 
@@ -891,7 +900,6 @@ const Editor: React.FC = () => {
                         zoomLevel={zoom}
                     />
                 ))}
-                <div className="h-32 flex-shrink-0" />
             </div>
         </div>
         
