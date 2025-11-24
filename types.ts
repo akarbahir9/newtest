@@ -1,4 +1,5 @@
 
+
 export type ViewType = 'editor' | 'dashboard' | 'search' | 'inbox' | 'characters' | 'locations' | 'settings' | 'outline';
 
 export type ProjectType = 'Screenplay' | 'Novel' | 'Serial';
@@ -11,6 +12,13 @@ export interface Episode {
     summary?: string;
 }
 
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'model';
+    text: string;
+    hasContradiction?: boolean;
+}
+
 export interface Project {
     id: string;
     title: string;
@@ -19,34 +27,36 @@ export interface Project {
     genres: string[];
     updatedAt: string;
     logline?: string;
+    detailedStory?: string; // New field for detailed story metadata
     theme?: string;
     setting?: string;
     protagonistGoal?: string;
-    episodes?: Episode[]; // New: For Serials
+    episodes?: Episode[]; 
     scenes: Scene[];
     characters: Character[];
     locations: Location[];
+    chatHistory?: ChatMessage[];
 }
 
 export interface Scene {
     id: string;
     title: string;
     number: number;
-    episodeId?: string; // New: Link to Episode
-    content: string; // HTML/Text content
+    episodeId?: string; 
+    content: string; 
     summary?: string;
 }
 
 export interface Relationship {
     targetId: string;
-    type: string; // e.g., "Sibling", "Enemy", "Ex-Lover"
+    type: string; 
     description?: string;
 }
 
 export interface Character {
     id: string;
     name: string;
-    role: string; // e.g. Protagonist, Antagonist
+    role: string; 
     archetype: string;
     arcCompletion: number;
     traits: string[];
@@ -60,11 +70,4 @@ export interface Location {
     type: 'INT' | 'EXT' | 'MIXED';
     description: string;
     sensoryDetails?: string[];
-}
-
-export interface ChatMessage {
-    id: string;
-    role: 'user' | 'model';
-    text: string;
-    hasContradiction?: boolean;
 }

@@ -27,6 +27,7 @@ const Dashboard: React.FC = () => {
   const [projectFormat, setProjectFormat] = useState<ProjectFormat>('Feature');
   const [newGenres, setNewGenres] = useState<string[]>(['خەیاڵی زانستی']);
   const [newLogline, setNewLogline] = useState('');
+  const [newDetailedStory, setNewDetailedStory] = useState('');
   const [newTheme, setNewTheme] = useState('');
   const [newSetting, setNewSetting] = useState('');
   const [newGoal, setNewGoal] = useState('');
@@ -40,6 +41,7 @@ const Dashboard: React.FC = () => {
     
     addProject(newTitle, projectType, projectFormat, newGenres, {
         logline: newLogline,
+        detailedStory: newDetailedStory,
         theme: newTheme,
         setting: newSetting,
         protagonistGoal: newGoal
@@ -52,6 +54,7 @@ const Dashboard: React.FC = () => {
     setProjectFormat('Feature');
     setNewGenres(['خەیاڵی زانستی']);
     setNewLogline('');
+    setNewDetailedStory('');
     setNewTheme('');
     setNewSetting('');
     setNewGoal('');
@@ -608,6 +611,16 @@ const Dashboard: React.FC = () => {
                                       value={newLogline}
                                       onChange={e => setNewLogline(e.target.value)}
                                       placeholder="نموونە: ئاسمانەوانێک لەسەر مەریخ گیر دەخوات..."
+                                  />
+                              </div>
+
+                              <div>
+                                  <label className="block text-xs text-zinc-500 mb-1">وردەکاری چیرۆک (Detailed Story)</label>
+                                  <textarea 
+                                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none h-24 resize-none"
+                                      value={newDetailedStory}
+                                      onChange={e => setNewDetailedStory(e.target.value)}
+                                      placeholder="تەواوی چیرۆکەکە بە وردی بنووسە لێرە تا زیرەکی دەستکرد بیزانێت..."
                                   />
                               </div>
                               

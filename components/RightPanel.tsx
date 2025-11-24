@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
@@ -6,7 +7,7 @@ import {
   FileCheck, Replace, PanelLeft
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
-import { ChatMessage } from '../types';
+import { ChatMessage, Character } from '../types';
 import { useProject } from '../context/ProjectContext';
 
 // Helper for unique IDs
@@ -96,27 +97,27 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 };
 
 const RightPanel: React.FC = () => {
-  const { currentProject, currentSceneId, updateSceneContent, isRightPanelOpen, setRightPanelOpen, showConfirmation } = useProject();
+  const { currentProject, currentSceneId, updateSceneContent, updateProject, updateCharacter, addChatMessage, isRightPanelOpen, setRightPanelOpen, showConfirmation } = useProject();
   const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
   
   // Chat State
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم دیمەنە.' },
-    { 
-      id: '2', 
-      role: 'model', 
-      text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە یان پێشنیاری نووسینەوە بکەم.',
-    }
-  ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
+  
+  // Use messages from current project
+  const messages = currentProject?.chatHistory || [];
+
+  // Reset loading state when project changes to avoid ghost loading states
+  useEffect(() => {
+    setIsChatLoading(false);
+  }, [currentProject?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isChatLoading]);
+  }, [messages, isChatLoading, currentProject?.id]);
 
   const buildDeepContext = () => {
       const charDetails = currentProject?.characters.map(c => {
@@ -125,7 +126,7 @@ const RightPanel: React.FC = () => {
               return `${r.type} of ${target} (${r.description})`;
           }).join(', ');
           
-          return `* ${c.name} (${c.role}, ${c.archetype}): ${c.description}. Traits: [${c.traits.join(', ')}]. ${rels ? `Relationships: ${rels}` : ''}`;
+          return `* [ID: ${c.id}] ${c.name} (${c.role}, ${c.archetype}): ${c.description}. Traits: [${c.traits.join(', ')}]. ${rels ? `Relationships: ${rels}` : ''}`;
       }).join('\n');
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
@@ -144,11 +145,12 @@ const RightPanel: React.FC = () => {
         Type: ${currentProject?.type} (${currentProject?.format || 'Standard'})
         Genres: ${genreString}
         Logline: ${currentProject?.logline || 'N/A'}
+        Detailed Story: ${currentProject?.detailedStory || 'N/A'}
         Theme: ${currentProject?.theme || 'N/A'}
         Setting: ${currentProject?.setting || 'N/A'}
         Protagonist Goal: ${currentProject?.protagonistGoal || 'N/A'}
         
-        CHARACTERS & RELATIONSHIPS:
+        CHARACTERS & RELATIONSHIPS (Note IDs for updates):
         ${charDetails || 'No characters defined.'}
 
         === FULL SCRIPT MEMORY ===
@@ -163,32 +165,83 @@ const RightPanel: React.FC = () => {
   };
 
   const executeCommand = async (command: string) => {
-      if (isChatLoading) return;
+      if (isChatLoading || !currentProject) return;
+      const projectId = currentProject.id;
       const userMsg: ChatMessage = { id: generateId(), role: 'user', text: command };
-      setMessages(prev => [...prev, userMsg]);
+      
+      // Update persistent storage immediately
+      addChatMessage(projectId, userMsg);
+      
       setIsChatLoading(true);
 
       try {
         const contextString = buildDeepContext();
-        const history = messages.map(m => ({
+        
+        // Reconstruct history for API from current project state + new message
+        const currentHistory = currentProject.chatHistory || [];
+        // Important: Ensure we don't duplicate the message if the context update was fast, 
+        // though typically addChatMessage is sync enough for React state updates in next render cycle.
+        // We'll trust currentProject.chatHistory has previous messages, and we append the new userMsg for the API call context.
+        const apiHistory = [...currentHistory, userMsg].map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
         }));
         
-        const responseText = await generateAssistantResponse(
-            history, 
+        const response = await generateAssistantResponse(
+            apiHistory, 
             command,
             contextString
         );
         
-        const modelMsg: ChatMessage = {
-          id: generateId(),
-          role: 'model',
-          text: responseText
-        };
-        setMessages(prev => [...prev, modelMsg]);
+        // Handle Tool Calls
+        if (response.toolCalls && response.toolCalls.length > 0) {
+            for (const call of response.toolCalls) {
+                if (call.name === 'update_project_metadata') {
+                    // Re-fetch project from context/state or assume currentProject is close enough 
+                    // (since we are inside async, we should use the projectId ref)
+                    updateProject(projectId, call.args);
+                    const confirmMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: "✅ زانیارییەکانی پڕۆژە نوێکرانەوە."
+                    };
+                    addChatMessage(projectId, confirmMsg);
+                } else if (call.name === 'update_character') {
+                     // We need to check against the project state available. 
+                     // Since state might have changed, ideally we'd pass a callback or refetch, but here we use currentProject
+                     const existing = currentProject.characters.find(c => c.id === call.args.id);
+                     if (existing) {
+                         const updatedChar: Character = {
+                             ...existing,
+                             ...call.args,
+                             traits: call.args.traits || existing.traits
+                         };
+                         updateCharacter(updatedChar);
+                         const confirmMsg: ChatMessage = {
+                            id: generateId(),
+                            role: 'model',
+                            text: `✅ کاراکتەری ${updatedChar.name} نوێکرایەوە.`
+                        };
+                        addChatMessage(projectId, confirmMsg);
+                     }
+                }
+            }
+        }
+        
+        // Only add text response if it exists and isn't just the default "processing" text when tool was called
+        // or if it provides additional context.
+        if (response.text && (!response.toolCalls || response.text.length > 30)) {
+            const modelMsg: ChatMessage = {
+              id: generateId(),
+              role: 'model',
+              text: response.text
+            };
+            addChatMessage(projectId, modelMsg);
+        }
+
       } catch (e) {
         console.error(e);
+        addChatMessage(projectId, { id: generateId(), role: 'model', text: "تێکچوونێک ڕوویدا." });
       } finally {
         setIsChatLoading(false);
       }

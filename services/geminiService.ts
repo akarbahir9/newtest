@@ -1,16 +1,51 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Tool Definitions
+const updateProjectTool: FunctionDeclaration = {
+  name: "update_project_metadata",
+  description: "Update the current project's global metadata. Use this when the user asks to change the title, logline, theme, setting, goal, or detailed story.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING },
+      logline: { type: Type.STRING },
+      detailedStory: { type: Type.STRING, description: "The full detailed story or synopsis" },
+      theme: { type: Type.STRING },
+      setting: { type: Type.STRING },
+      protagonistGoal: { type: Type.STRING },
+      genres: { type: Type.ARRAY, items: { type: Type.STRING } }
+    }
+  }
+};
+
+const updateCharacterTool: FunctionDeclaration = {
+  name: "update_character",
+  description: "Update an existing character's details. Requires the character ID.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      id: { type: Type.STRING, description: "The ID of the character to update" },
+      name: { type: Type.STRING },
+      role: { type: Type.STRING },
+      archetype: { type: Type.STRING },
+      description: { type: Type.STRING },
+      traits: { type: Type.ARRAY, items: { type: Type.STRING } }
+    },
+    required: ["id"]
+  }
+};
 
 export const generateAssistantResponse = async (
   history: { role: string; parts: { text: string }[] }[],
   message: string,
   projectContext?: string
-): Promise<string> => {
+): Promise<{ text: string, toolCalls?: any[] }> => {
   try {
     const model = 'gemini-2.5-flash';
     
-    // Truncate context if excessive to prevent browser XHR errors (code 6)
+    // Truncate context if excessive
     const safeContext = projectContext ? projectContext.slice(0, 100000) : '';
 
     let systemInstruction = `You are Zoer, an advanced AI story assistant. You speak and write primarily in Kurdish (Sorani).
@@ -26,13 +61,16 @@ export const generateAssistantResponse = async (
        - <div class="sp-transition">CUT TO:</div> (Use Kurdish Transition if appropriate, or English standard)
     3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
     
+    CAPABILITIES:
+    - You can update project metadata (title, logline, detailed story, etc.) if the user asks.
+    - You can update character details if the user asks.
+    - If you perform an update, confirm it in the text response.
+
     MODES OF OPERATION:
     
     A. SELECTION MODE (Specific Text):
     If the prompt includes "SELECTED TEXT", assume the user wants changes ONLY to that specific segment.
     - Analyze or rewrite ONLY the selected text.
-    - Provide alternatives ONLY for the selected text.
-    - Do NOT output the whole scene.
     - Wrap the rewritten segment in <screenplay> tags.
 
     B. SCENE MODE (General):
@@ -41,32 +79,48 @@ export const generateAssistantResponse = async (
     2. Then, provide a "SUGGESTED REWRITE" or "IMPROVED VERSION" block.
     3. This rewrite block MUST be wrapped in <screenplay> tags.
 
-    C. GENERAL CHAT & ANALYSIS (No Screenplay generation):
+    C. GENERAL CHAT & ANALYSIS:
     If the user asks for information, summaries, or character analysis:
     - Use **Markdown** for formatting.
-    - Use **Bold** keys (e.g., **Name:**) for structured data.
-    - Use bullet points (*) for lists.
     - Be concise and visually clean.
     - Respond in Kurdish (Sorani).
     `;
 
     if (safeContext) {
-        systemInstruction += `\n\n=== PROJECT MEMORY & CONTEXT ===\n${safeContext}\n=== END MEMORY ===\n\nUse the specific details from the Project Memory above to answer questions about previous scenes, callback to earlier events, or maintain continuity.`;
+        systemInstruction += `\n\n=== PROJECT MEMORY & CONTEXT ===\n${safeContext}\n=== END MEMORY ===\n\nUse the specific details from the Project Memory above to answer questions. If updating characters, use the IDs provided in the memory.`;
     }
 
     const chat = ai.chats.create({
       model,
       config: {
         systemInstruction,
+        tools: [{ functionDeclarations: [updateProjectTool, updateCharacterTool] }],
       },
       history: history,
     });
 
     const response = await chat.sendMessage({ message });
-    return response.text || "نەمتوانی وەڵامێک دروست بکەم.";
+    
+    // Check for function calls in the candidate
+    const candidate = response.candidates?.[0];
+    let toolCalls = [];
+    
+    if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+            if (part.functionCall) {
+                toolCalls.push(part.functionCall);
+            }
+        }
+    }
+
+    return {
+        text: response.text || (toolCalls.length > 0 ? "داواکارییەکەت جێبەجێ دەکەم..." : "نەمتوانی وەڵامێک دروست بکەم."),
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+    };
+
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "ببورە، کێشەیەک هەیە لە پەیوەندیکردن بە خزمەتگوزاری زیرەکی دەستکرد. ڕەنگە دەقەکە زۆر گەورە بێت یان کێشەی ئینتەرنێت هەبێت.";
+    return { text: "ببورە، کێشەیەک هەیە لە پەیوەندیکردن بە خزمەتگوزاری زیرەکی دەستکرد." };
   }
 };
 
@@ -86,15 +140,11 @@ export const generateAutocomplete = async (
   try {
     if (!currentText) return "";
     
-    // Normalize text
     const cleanText = currentText.replace(/\u00A0/g, ' ');
     const isTrailingSpace = cleanText.endsWith(' ');
     
-    // Context Slice - ensure we capture enough RTL context
-    // Taking the last 1200 chars to be safe for context window and RTL flow
     const textSlice = cleanText.slice(-1200) || "سەرەتای چیرۆکەکە";
 
-    // Optimized Prompt for Kurdish Sorani
     const prompt = `You are a creative writing assistant for Kurdish (Sorani).
     
     TASK: Continue the story text naturally.
@@ -112,17 +162,14 @@ export const generateAutocomplete = async (
     2. Maintain the tone and style of the input.
     3. Do NOT repeat the last word of the input.
     4. Return ONLY the completion text. No explanations.
-    5. If the input is dialogue (inside quotes), complete the dialogue.
-    6. If the input is action, complete the action description.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        maxOutputTokens: 80, // Increased to allow for longer Kurdish words
+        maxOutputTokens: 80,
         temperature: 0.45,
-        // Removed explicit stop sequences for newlines to prevent premature cut-off
         stopSequences: ["<"], 
       }
     });
@@ -131,15 +178,11 @@ export const generateAutocomplete = async (
     
     if (!suggestion) return "";
 
-    // Cleanup quotes if model hallucinates them at the edges
     suggestion = suggestion.replace(/^["']|["']$/g, '');
     
-    // Smart Spacing Logic:
-    // 1. If user typed space (trailing space), ensure suggestion DOES NOT start with space.
     if (isTrailingSpace && suggestion.startsWith(' ')) {
         suggestion = suggestion.trimStart();
     }
-    // 2. If user did NOT type space, and suggestion is a new word (not punctuation), ensure it starts with space.
     else if (!isTrailingSpace && !suggestion.startsWith(' ') && !/^[.,;?!،؛؟]/.test(suggestion)) {
         suggestion = ' ' + suggestion;
     }
@@ -176,7 +219,6 @@ export const generateStructuredSuggestions = async (context: string): Promise<an
         "complication": "A single paragraph describing a major complication."
       }
       
-      For the 'complication', make it dramatic.
       ENSURE ALL TEXT VALUES ARE IN KURDISH (SORANI).`,
       config: {
         responseMimeType: 'application/json',

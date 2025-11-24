@@ -1,5 +1,7 @@
+
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode } from '../types';
+import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage } from '../types';
 
 // Robust ID Generator to prevent React key collisions
 const generateId = () => {
@@ -17,6 +19,7 @@ const SEED_PROJECT: Project = {
   format: 'Feature',
   genres: ['خەیاڵی زانستی', 'هەستبزوێن', 'دەروونی'],
   logline: 'فڕۆکەوانێکی گیرخواردوو و ژیری دەستکردێکی تێکچوو دەبێت هاوکاری یەکتر بکەن بۆ ڕزگاربوون لە کەشتییەک پێش ئەوەی بکەوێتە ناو کونی ڕەش.',
+  detailedStory: 'چیرۆکەکە لە ساڵی ٢١٥٠ ڕوودەدات. کەشتی ئیجیس کە ئەرکی گواستنەوەی سەرچاوەی وزە بوو لە کەناری گەردوون، تووشی ڕووداوێکی نادیار دەبێت. ئاریا تەنها ڕزگاربووە. زیرەکی دەستکردی کەشتییەکە، ئیجیس، دووچاری شیزۆفرینیا بووە. دەبێت ئاریا متمانە بە ئیجیس بکات سەرەڕای گومانەکانی...',
   theme: 'متمانە بەرامبەر لۆژیک',
   setting: 'کەشتی ئاسمانی ئیجیس',
   protagonistGoal: 'گەڕاندنەوەی وزە بۆ بزوێنەرەکان و ڕزگاربوون.',
@@ -66,6 +69,14 @@ const SEED_PROJECT: Project = {
 <div class="sp-dialogue">کۆمپیوتەر. ڕاپۆرت بدە.</div>`,
       summary: 'ئاریا بە برینداری خەبەری دەبێتەوە. کەشتییەکە تێکچووە.'
     }
+  ],
+  chatHistory: [
+    { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم پڕۆژەیە.' },
+    { 
+      id: '2', 
+      role: 'model', 
+      text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.',
+    }
   ]
 };
 
@@ -91,7 +102,7 @@ interface ProjectContextType {
       type: ProjectType, 
       format: ProjectFormat,
       genres: string[], 
-      metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }
+      metadata: { logline: string, detailedStory: string, theme: string, setting: string, protagonistGoal: string }
   ) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -105,6 +116,7 @@ interface ProjectContextType {
   addLocation: (loc: Omit<Location, 'id'>) => void;
   addEpisode: () => void;
   updateEpisode: (episodeId: string, title: string) => void;
+  addChatMessage: (projectId: string, message: ChatMessage) => void;
   confirmationState: ConfirmationState;
   showConfirmation: (message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
@@ -159,7 +171,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       type: ProjectType, 
       format: ProjectFormat,
       genres: string[], 
-      metadata: { logline: string, theme: string, setting: string, protagonistGoal: string }
+      metadata: { logline: string, detailedStory: string, theme: string, setting: string, protagonistGoal: string }
   ) => {
     const epId = generateId();
     const sceneId = generateId();
@@ -198,7 +210,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       updatedAt: new Date().toISOString(),
       scenes: initialScenes,
       episodes: initialEpisodes,
-      characters: [], locations: []
+      characters: [], locations: [],
+      chatHistory: [
+        { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم پڕۆژەیە.' },
+        { 
+          id: '2', 
+          role: 'model', 
+          text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.',
+        }
+      ]
     };
     setProjects([...projects, newProject]);
     setCurrentProjectId(newProject.id);
@@ -366,6 +386,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
   };
 
+  const addChatMessage = (projectId: string, message: ChatMessage) => {
+    setProjects(prev => prev.map(p => {
+        if (p.id === projectId) {
+            const history = p.chatHistory || [];
+            return { ...p, chatHistory: [...history, message] };
+        }
+        return p;
+    }));
+  };
+
   return (
     <ProjectContext.Provider value={{
       projects,
@@ -392,6 +422,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       addLocation,
       addEpisode,
       updateEpisode,
+      addChatMessage,
       confirmationState,
       showConfirmation,
       hideConfirmation,
