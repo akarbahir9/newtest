@@ -412,12 +412,12 @@ const Editor: React.FC = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Zoom State: Initialize based on device width (82 for desktop, 50 for mobile/tablet)
+  // Zoom State: Initialize based on device width (70 for desktop, 50 for mobile/tablet)
   const [zoom, setZoom] = useState(() => {
      if (typeof window !== 'undefined') {
-         return window.innerWidth <= 1024 ? 0.50 : 0.82;
+         return window.innerWidth <= 1024 ? 0.50 : 0.70;
      }
-     return 0.82;
+     return 0.70;
   });
 
   // Formatting State
@@ -448,7 +448,7 @@ const Editor: React.FC = () => {
   const handleZoomReset = () => {
        // Reset to defaults
        const isMobile = window.innerWidth <= 1024;
-       setZoom(isMobile ? 0.50 : 0.82);
+       setZoom(isMobile ? 0.50 : 0.70);
   };
 
   useEffect(() => {
@@ -458,7 +458,7 @@ const Editor: React.FC = () => {
         if (isMobile) {
             setZoom(0.50);
         } else {
-            setZoom(0.82);
+            setZoom(0.70);
         }
     };
     

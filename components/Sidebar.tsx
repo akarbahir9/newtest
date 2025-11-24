@@ -49,8 +49,11 @@ const Sidebar: React.FC = () => {
             ${isSidebarOpen 
                 ? 'translate-x-0 w-64 border-l border-zinc-800/60' 
                 : 'translate-x-full'}
-            pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
         `}
+        style={{
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)'
+        }}
     >
       <div className={`flex flex-col h-full w-64 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
         {/* Brand & Project Switcher */}
