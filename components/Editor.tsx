@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { Film, Undo, Redo, ZoomIn, ZoomOut, MapPin, User, MessageSquare, AlignLeft, ArrowRight, Parentheses, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -209,14 +210,22 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                     : (isNovelMode ? `<p>${node.textContent}</p>` : `<div class="sp-action">${node.textContent}</div>`);
              }).join('');
              
-             nodesToRemove.forEach(node => {
-                 if ((node as HTMLElement).className !== 'ai-ghost') node.parentNode?.removeChild(node);
-             });
+             // IMPORTANT: We do NOT remove nodes here directly to prevent React Error #520.
+             // We rely on calculating the overflow and sending the truncated HTML back to parent state.
+             
+             const nodesToKeep = nodes.slice(0, splitNodeIndex);
+             trimmedHTML = nodesToKeep.map(node => {
+                 if ((node as HTMLElement).className === 'ai-ghost') return '';
+                 return node.nodeType === Node.ELEMENT_NODE 
+                    ? (node as HTMLElement).outerHTML 
+                    : (node.textContent || ''); // Raw text content
+             }).join('');
         }
 
         if (overflowHTML) {
             removeGhostNode();
-            onSplit(id, trimmedHTML || pageRef.current.innerHTML, overflowHTML);
+            // Pass constructed HTML strings instead of current innerHTML
+            onSplit(id, trimmedHTML, overflowHTML);
             return true;
         }
         return false;
@@ -278,8 +287,6 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         if (skipGhostCheck) return;
 
         // 3. Trigger Logic
-        // Robust trigger logic: Check the text immediately preceding the cursor.
-        // This is more reliable than InputEvent.data for space/punctuation detection.
         const textBeforeCursor = getTextContext();
         if (!textBeforeCursor) return;
 
@@ -287,7 +294,6 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         const isTriggerChar = [' ', '\u00A0', '.', '?', '!', '،', '؛', '؟', '\n'].includes(lastChar);
         
         const nativeEvent = e?.nativeEvent as InputEvent;
-        // Check input type to avoid triggering on deletes
         if (nativeEvent?.inputType && nativeEvent.inputType.startsWith('delete')) return;
 
         if (isTriggerChar) {
@@ -369,7 +375,7 @@ const FormattingToolbar: React.FC<{ onFormat: (cls: string) => void, activeForma
     ];
 
     return (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.6)] flex items-center gap-1 z-50 animate-in fade-in slide-in-from-bottom-4 w-auto max-w-[95vw] overflow-x-auto no-scrollbar touch-pan-x">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 p-1.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.6)] flex items-center gap-1 z-[60] animate-in fade-in slide-in-from-bottom-4 w-auto max-w-[95vw] overflow-x-auto no-scrollbar touch-pan-x">
             {buttons.map((btn, idx) => {
                 const isActive = activeFormat === btn.id;
                 return (
@@ -879,8 +885,9 @@ const Editor: React.FC = () => {
             </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth custom-scrollbar" id="editor-scroll">
-            <div className="flex flex-col items-center w-full min-h-full" style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem', gap: `${16 * zoom}px` }}>
+        <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth custom-scrollbar overscroll-contain" id="editor-scroll">
+            {/* Reduced bottom padding to 80px to match toolbar height plus gap */}
+            <div className="flex flex-col items-center w-full" style={{ paddingTop: '20px', paddingBottom: '80px', gap: `${16 * zoom}px` }}>
                 {pages.map((page, i) => (
                     <div 
                         key={page.id} 

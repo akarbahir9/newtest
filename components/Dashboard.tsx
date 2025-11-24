@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -381,7 +382,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
-      <div className="max-w-5xl mx-auto w-full">
+      <div className="max-w-7xl mx-auto w-full">
         <div className="flex justify-between items-center mb-6 pl-0 md:pl-0">
             <div className="flex items-center gap-4">
                  <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">داشبۆرد</h1>
@@ -438,49 +439,60 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Projects List */}
+        {/* Projects List - Responsive Grid */}
         <h2 className="text-sm font-medium text-zinc-400 mb-4 uppercase tracking-wide">پڕۆژەکانی ڕابردوو</h2>
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {projects.map(project => (
               <div 
                 key={project.id}
                 onClick={() => { setCurrentProject(project.id); navigateTo('editor'); }} 
-                className="group flex items-center justify-between p-3 md:p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-600 cursor-pointer transition relative"
+                className="group flex flex-col p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-600 cursor-pointer transition relative h-full min-h-[180px]"
               >
-                <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                    <div className={`w-10 h-10 rounded ${project.type === 'Screenplay' ? 'bg-primary-900/30 text-primary-400 border-primary-500/20' : project.type === 'Serial' ? 'bg-purple-900/30 text-purple-400 border-purple-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700'} flex items-center justify-center border flex-shrink-0`}>
-                        {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg ${project.type === 'Screenplay' ? 'bg-primary-900/20 text-primary-400' : project.type === 'Serial' ? 'bg-purple-900/20 text-purple-400' : 'bg-zinc-800 text-zinc-400'} flex items-center justify-center border border-white/5`}>
+                            {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-zinc-200 group-hover:text-white line-clamp-1 leading-tight">{project.title}</h3>
+                            <p className="text-[10px] text-zinc-500 mt-0.5">{project.type} • {project.genres?.[0] || 'General'}</p>
+                        </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-medium text-zinc-200 group-hover:text-white truncate">{project.title}</h3>
-                        <p className="text-xs text-zinc-500 truncate">
-                            {project.type === 'Screenplay' ? 'سیناریۆ' : project.type === 'Serial' ? 'زنجیرە' : 'ڕۆمان'} {project.type === 'Screenplay' && project.format ? `(${project.format})` : ''} • {project.genres.join(', ')}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <button 
-                        onClick={(e) => handleExportPDF(e, project)}
-                        className="p-2 text-zinc-600 hover:text-zinc-200 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
-                        title="دابەزاندن وەک PDF"
-                    >
-                        <FileDown className="w-4 h-4" />
-                    </button>
-                    <button 
-                        onClick={(e) => handleExportJSON(e, project)}
-                        className="p-2 text-zinc-600 hover:text-zinc-200 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
-                        title="دابەزاندنی باک ئەپ (JSON)"
-                    >
-                        <Download className="w-4 h-4" />
-                    </button>
+                    
                     <button 
                         onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}
-                        className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded transition opacity-100 md:opacity-0 group-hover:opacity-100"
-                        title="سڕینەوەی پڕۆژە"
+                        className="text-zinc-600 hover:text-red-500 transition opacity-100 md:opacity-0 group-hover:opacity-100 p-1"
                     >
                         <Trash2 className="w-4 h-4" />
                     </button>
-                    <ChevronLeft className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
+                </div>
+
+                <div className="flex-1 mb-4">
+                    <p className="text-xs text-zinc-500 leading-relaxed line-clamp-3">
+                        {project.logline || 'هیچ کورتەیەک زیاد نەکراوە بۆ ئەم پڕۆژەیە...'}
+                    </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-zinc-800/50 mt-auto">
+                    <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition">
+                        <button 
+                            onClick={(e) => handleExportPDF(e, project)}
+                            className="text-zinc-500 hover:text-zinc-200 transition"
+                            title="PDF"
+                        >
+                            <FileDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                            onClick={(e) => handleExportJSON(e, project)}
+                            className="text-zinc-500 hover:text-zinc-200 transition"
+                            title="JSON"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                    <span className="text-[10px] text-zinc-600 font-mono">
+                        {new Date(project.updatedAt).toLocaleDateString()}
+                    </span>
                 </div>
             </div>
           ))}
@@ -493,8 +505,7 @@ const Dashboard: React.FC = () => {
               <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[95vh]">
                   <h3 className="text-lg font-medium text-zinc-100 mb-4">دەستپێکردنی پڕۆژەی نوێ</h3>
                   <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
-                      
-                      {/* 1. Project Type Selection */}
+                      {/* ... Form Content (Same as before) ... */}
                       <div className="space-y-3">
                           <label className="block text-xs text-zinc-500 font-semibold uppercase tracking-wider">جۆر هەڵبژێرە</label>
                           <div className="grid grid-cols-3 gap-3">
@@ -522,7 +533,6 @@ const Dashboard: React.FC = () => {
                           </div>
                       </div>
 
-                      {/* 2. Conditional Sub-Type Selection for Scripts */}
                       {projectType === 'Screenplay' && (
                           <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                               <label className="block text-xs text-zinc-500">فۆرماتی سیناریۆ</label>
