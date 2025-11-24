@@ -64,6 +64,18 @@ const findReplaceTool: FunctionDeclaration = {
   }
 };
 
+const updateBlueprintTool: FunctionDeclaration = {
+    name: "update_blueprint",
+    description: "Update the project's detailed plan/blueprint. Use this when the user asks to create, modify, or outline the story structure.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        content: { type: Type.STRING, description: "The full updated Markdown content of the blueprint." }
+      },
+      required: ["content"]
+    }
+};
+
 export const generateAssistantResponse = async (
   history: { role: string; parts: { text: string }[] }[],
   message: string,
@@ -258,4 +270,67 @@ export const generateStructuredSuggestions = async (context: string): Promise<an
     console.error("Suggestion Generation Error:", error);
     return null;
   }
+};
+
+export const generateStoryPlanChat = async (
+    history: { role: string; parts: { text: string }[] }[],
+    message: string,
+    currentPlan: string,
+    projectContext: any
+): Promise<{ text: string, newPlan?: string }> => {
+    try {
+        const systemInstruction = `You are a master architect of stories (Screenplays, Novels, Serials). You communicate in Kurdish (Sorani).
+        
+        TASK: Act as a planning consultant. Discuss the project structure with the user and UPDATE the Blueprint when asked.
+        
+        PROJECT CONTEXT:
+        Title: ${projectContext.title}
+        Type: ${projectContext.type}
+        Format: ${projectContext.format}
+        Target Structure: ${JSON.stringify(projectContext.targetMetadata)}
+        Logline: ${projectContext.logline}
+        
+        CURRENT BLUEPRINT:
+        ${currentPlan || "No plan exists yet."}
+        
+        INSTRUCTIONS:
+        1. If the user asks for suggestions, give them in chat.
+        2. If the user asks to CREATE, EXPAND, or CHANGE the plan/outline/structure, you MUST use the 'update_blueprint' tool.
+        3. When using 'update_blueprint', provide the COMPLETE Markdown text for the new plan. Do not just provide a snippet.
+        4. Organize the plan logically:
+           - Movies: Acts and Sequences.
+           - Novels: Parts and Chapters.
+           - Series: Seasons and Episodes.
+        `;
+
+        const chat = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            config: {
+                systemInstruction,
+                tools: [{ functionDeclarations: [updateBlueprintTool] }],
+            },
+            history: history,
+        });
+
+        const response = await chat.sendMessage({ message });
+        
+        let newPlan = undefined;
+        let responseText = response.text || "";
+
+        const candidate = response.candidates?.[0];
+        if (candidate?.content?.parts) {
+            for (const part of candidate.content.parts) {
+                if (part.functionCall && part.functionCall.name === 'update_blueprint') {
+                    newPlan = part.functionCall.args['content'];
+                    if (!responseText) responseText = "پلانەکەم نوێکردەوە بەپێی داواکارییەکەت.";
+                }
+            }
+        }
+
+        return { text: responseText, newPlan };
+
+    } catch (error) {
+        console.error("Plan Chat Error:", error);
+        return { text: "ببورە، کێشەیەک ڕوویدا." };
+    }
 };

@@ -19,6 +19,20 @@ export interface ChatMessage {
     hasContradiction?: boolean;
 }
 
+export interface TargetMetadata {
+    // Movie
+    durationMinutes?: number;
+    
+    // Novel
+    targetPageCount?: number;
+    targetWordCount?: number;
+    
+    // Series
+    totalSeasons?: number;
+    episodesPerSeason?: number;
+    episodeDuration?: number;
+}
+
 export interface Project {
     id: string;
     title: string;
@@ -28,6 +42,8 @@ export interface Project {
     updatedAt: string;
     logline?: string;
     detailedStory?: string; // New field for detailed story metadata
+    blueprint?: string; // New field for the generated plan
+    targetMetadata?: TargetMetadata; // Configuration for length/structure
     theme?: string;
     setting?: string;
     protagonistGoal?: string;

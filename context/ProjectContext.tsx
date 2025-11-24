@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage } from '../types';
 import { supabase } from '../lib/supabase';
@@ -20,6 +21,8 @@ const DEMO_PROJECT: Project = {
     updatedAt: new Date().toISOString(),
     logline: 'This project is loaded because a connection to the database could not be established.',
     detailedStory: '',
+    blueprint: '# Act 1\n\n## The Hook\nA brief intro to the world.\n\n## Inciting Incident\nSomething happens that changes everything.',
+    targetMetadata: { durationMinutes: 120 },
     theme: '',
     setting: '',
     protagonistGoal: '',
@@ -131,6 +134,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             ...p,
             detailedStory: p.detailed_story,
             protagonistGoal: p.protagonist_goal,
+            targetMetadata: p.target_metadata,
             scenes: p.scenes?.sort((a: Scene, b: Scene) => a.number - b.number) || [],
             episodes: p.episodes?.sort((a: Episode, b: Episode) => a.number - b.number) || [],
             characters: p.characters || [],
@@ -190,7 +194,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 detailed_story: metadata.detailedStory,
                 theme: metadata.theme,
                 setting: metadata.setting,
-                protagonist_goal: metadata.protagonistGoal
+                protagonist_goal: metadata.protagonistGoal,
+                target_metadata: type === 'Screenplay' ? { durationMinutes: 110 } : type === 'Novel' ? { targetPageCount: 300 } : { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 }
             })
             .select()
             .single();
@@ -269,6 +274,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             ...projData,
             detailedStory: projData.detailed_story, // Map snake_case to camelCase
             protagonistGoal: projData.protagonist_goal,
+            targetMetadata: projData.target_metadata,
             scenes: initialScenes,
             episodes: initialEpisodes,
             characters: [],
@@ -341,6 +347,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             theme: metadata.theme,
             setting: metadata.setting,
             protagonistGoal: metadata.protagonistGoal,
+            targetMetadata: type === 'Screenplay' ? { durationMinutes: 110 } : type === 'Novel' ? { targetPageCount: 300 } : { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 },
+            blueprint: '',
             scenes: initialScenes,
             episodes: initialEpisodes,
             characters: [],
@@ -378,6 +386,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               dbData.protagonist_goal = data.protagonistGoal;
               delete dbData.protagonistGoal;
           }
+          if (data.targetMetadata !== undefined) {
+              dbData.target_metadata = data.targetMetadata;
+              delete dbData.targetMetadata;
+          }
+
           // Remove relation arrays if present in partial update to avoid DB errors
           delete dbData.scenes;
           delete dbData.characters;
