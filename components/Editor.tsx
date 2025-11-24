@@ -415,7 +415,7 @@ const Editor: React.FC = () => {
   // Zoom State: Initialize based on device width (82 for desktop, 50 for mobile/tablet)
   const [zoom, setZoom] = useState(() => {
      if (typeof window !== 'undefined') {
-         return window.innerWidth < 1024 ? 0.50 : 0.82;
+         return window.innerWidth <= 1024 ? 0.50 : 0.82;
      }
      return 0.82;
   });
@@ -447,14 +447,14 @@ const Editor: React.FC = () => {
   const handleZoomOut = () => setZoom(prev => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.3)); // Allow smaller zoom for mobile
   const handleZoomReset = () => {
        // Reset to defaults
-       const isMobile = window.innerWidth < 1024;
+       const isMobile = window.innerWidth <= 1024;
        setZoom(isMobile ? 0.50 : 0.82);
   };
 
   useEffect(() => {
     const updateZoom = () => {
         // Enforce the specific zoom levels requested based on breakpoint
-        const isMobile = window.innerWidth < 1024; // Covers Mobiles and iPads in Portrait
+        const isMobile = window.innerWidth <= 1024; // Covers Mobiles and iPads in Portrait (and some landscape)
         if (isMobile) {
             setZoom(0.50);
         } else {
@@ -467,7 +467,7 @@ const Editor: React.FC = () => {
 
     window.addEventListener('resize', updateZoom);
     return () => window.removeEventListener('resize', updateZoom);
-  }, []); // Only run once on mount to set up listener, but strict dependency on nothing else to prevent override loops
+  }, []); // Only run once on mount
 
   // Detect Active Format based on Selection
   useEffect(() => {

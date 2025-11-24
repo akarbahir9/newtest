@@ -140,8 +140,11 @@ const Characters: React.FC = () => {
 
       {/* CREATE Modal - Responsive Fix */}
       {showModal && (
-          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl m-2 md:m-4 flex flex-col max-h-[calc(100dvh-2rem)] overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-zinc-950/80 backdrop-blur-sm">
+              <div 
+                  className="bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-2xl sm:rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90dvh] h-auto animate-in slide-in-from-bottom-5 duration-300"
+                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+              >
                   <h3 className="text-lg font-medium text-zinc-100 mb-4 flex-shrink-0">زیادکردنی کاراکتەر</h3>
                   <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pb-2">
                       <div>
@@ -179,8 +182,11 @@ const Characters: React.FC = () => {
 
       {/* EDIT Modal - Responsive Fix */}
       {editingChar && (
-          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[calc(100dvh-2rem)] m-2 md:m-4 overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-zinc-950/80 backdrop-blur-sm">
+              <div 
+                  className="bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-2xl sm:rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90dvh] h-auto animate-in slide-in-from-bottom-5 duration-300"
+                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+              >
                   <div className="p-6 border-b border-zinc-800 flex justify-between items-center flex-shrink-0">
                     <h3 className="text-lg font-medium text-zinc-100">دەستکاری {editingChar.name}</h3>
                     <button onClick={() => setEditingChar(null)}><Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-500" /></button>

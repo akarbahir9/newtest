@@ -499,10 +499,13 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Create Modal - Responsive Fix with dvh */}
+      {/* Create Modal - Responsive Fix with fixed position for keyboard friendliness */}
       {showNewProjectModal && (
-          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[calc(100dvh-2rem)] m-2 md:m-4 overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-zinc-950/80 backdrop-blur-sm">
+              <div 
+                  className="bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-2xl sm:rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90dvh] h-auto sm:h-auto overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
+                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+              >
                   <h3 className="text-lg font-medium text-zinc-100 mb-4 flex-shrink-0">دەستپێکردنی پڕۆژەی نوێ</h3>
                   <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-2">
                       {/* ... Form Content ... */}

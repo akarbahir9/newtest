@@ -323,9 +323,9 @@ const RightPanel: React.FC = () => {
             ${isRightPanelOpen 
                 ? '-translate-x-0 ml-0 w-full border-r border-zinc-800/60' 
                 : '-translate-x-full'}
-            bottom-0 top-12 
-            h-[calc(100dvh-3rem)]
-            pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
+            bottom-0 
+            top-[calc(3rem+env(safe-area-inset-top))] md:top-0
+            pt-2 md:pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
         `}
     >
         

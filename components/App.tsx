@@ -85,26 +85,28 @@ const MainLayout: React.FC = () => {
         )}
 
         {/* Mobile Header - With Safe Area Padding */}
-        <div className="md:hidden h-auto min-h-[3rem] py-2 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 relative z-30 pt-[env(safe-area-inset-top)]">
-            {/* Right Side: Menu & Brand */}
-            <div className="flex items-center gap-3">
-                <button 
-                    onClick={() => setSidebarOpen(true)} 
-                    className="text-zinc-400 hover:text-white"
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
-                <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
-            </div>
+        <div className="md:hidden flex-shrink-0 border-b border-zinc-800 bg-zinc-950 relative z-30 pt-[env(safe-area-inset-top)]">
+            <div className="h-12 flex items-center justify-between px-4">
+                {/* Right Side: Menu & Brand */}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setSidebarOpen(true)} 
+                        className="text-zinc-400 hover:text-white"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
+                </div>
 
-            {/* Left Side: AI Toggle */}
-            <button 
-                onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
-                className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
-                title="Toggle AI Chat"
-            >
-                <Sparkles className="w-5 h-5" />
-            </button>
+                {/* Left Side: AI Toggle */}
+                <button 
+                    onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
+                    className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
+                    title="Toggle AI Chat"
+                >
+                    <Sparkles className="w-5 h-5" />
+                </button>
+            </div>
         </div>
 
         <main className="flex-1 bg-zinc-950 relative overflow-hidden flex flex-col">
