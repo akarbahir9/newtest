@@ -1,6 +1,5 @@
-
 import React, { useState, useRef } from 'react';
-import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown } from 'lucide-react';
+import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown, WifiOff, Database } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Project, ProjectType, ProjectFormat } from '../types';
 import { PDFDocument, rgb } from 'pdf-lib';
@@ -14,7 +13,7 @@ const GENRES = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, importProject } = useProject();
+  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, importProject, isOffline } = useProject();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   
@@ -170,7 +169,6 @@ const Dashboard: React.FC = () => {
                 line-height: 1.2; 
                 color: #000000 !important;
                 letter-spacing: normal !important;
-                text-transform: none !important;
             }
             .sp-dialogue { 
                 text-align: center; 
@@ -413,6 +411,30 @@ const Dashboard: React.FC = () => {
                 </button>
             </div>
         </div>
+
+        {isOffline && (
+            <div className="mb-6 bg-amber-950/40 border border-amber-500/20 p-4 rounded-xl flex items-start gap-4" dir="rtl">
+                <div className="bg-amber-500/10 p-2.5 rounded-lg flex-shrink-0">
+                    <WifiOff className="w-5 h-5 text-amber-500" />
+                </div>
+                <div className="flex-1">
+                    <h3 className="text-sm font-bold text-amber-200 mb-1">پەیوەندی بە داتابەیسەوە نییە</h3>
+                    <p className="text-xs text-amber-400/80 leading-relaxed mb-2">
+                        ئەپڵیکەیشنەکە نەیتوانی پەیوەندی بە Supabaseـەوە بکات. دوو هۆکار هەیە:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-2 text-xs text-amber-300/70 font-mono text-left dir-ltr">
+                        <li className="flex items-start gap-2">
+                           <span className="mt-0.5">1.</span>
+                           <span><strong>Tables Missing:</strong> You must create the tables in Supabase SQL Editor.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                           <span className="mt-0.5">2.</span>
+                           <span><strong>Bad Credentials:</strong> Check `lib/supabase.ts` (Already Updated).</span>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+        )}
         
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
@@ -583,7 +605,7 @@ const Dashboard: React.FC = () => {
                                         className={`text-xs px-2 py-1 rounded border transition ${
                                             newGenres.includes(genre) 
                                             ? 'bg-primary-600 border-primary-500 text-white' 
-                                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+                                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:text-zinc-200 hover:bg-zinc-700'
                                         }`}
                                       >
                                           {genre}

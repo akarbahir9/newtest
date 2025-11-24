@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
-  FolderOpen, Book, Users, MapPin, Settings, X, Tv, Trash2, PanelRight
+  FolderOpen, Book, Users, MapPin, Settings, X, Tv, Trash2, PanelRight, Wifi, WifiOff
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { ViewType } from '../types';
@@ -11,7 +12,7 @@ const Sidebar: React.FC = () => {
   const { 
     currentView, navigateTo, projects, currentProject, 
     setCurrentProject, setCurrentSceneId, currentSceneId, addScene, deleteScene, showConfirmation,
-    isSidebarOpen, setSidebarOpen, addEpisode
+    isSidebarOpen, setSidebarOpen, addEpisode, isOffline
   } = useProject();
   
   const [isProjectOpen, setIsProjectOpen] = useState(true);
@@ -212,6 +213,7 @@ const Sidebar: React.FC = () => {
         <div className="p-2 mt-auto border-t border-zinc-800 flex-shrink-0">
             <div onClick={() => navigateTo('settings')} className={getItemClass('settings')}>
             <Settings className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">ڕێکخستنەکان</span>
+            <div className={`mr-auto w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-amber-500' : 'bg-emerald-500'}`} title={isOffline ? 'Offline' : 'Connected'}></div>
             </div>
         </div>
       </div>

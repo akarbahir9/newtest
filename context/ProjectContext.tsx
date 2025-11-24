@@ -56,6 +56,7 @@ interface ProjectContextType {
   isSidebarOpen: boolean;
   isRightPanelOpen: boolean;
   isLoading: boolean;
+  isOffline: boolean;
   setSidebarOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   setCurrentProject: (id: string) => void;
@@ -95,6 +96,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [currentSceneId, setCurrentSceneId] = useState<string>('');
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   
   const [isSidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [isRightPanelOpen, setRightPanelOpen] = useState(true);
@@ -129,16 +131,57 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         if (error) throw error;
 
-        // Sort relations client-side and Map DB fields to TS types
+        // Map Database snake_case to Typescript camelCase
         const formattedProjects = (projectsData || []).map(p => ({
-            ...p,
+            id: p.id,
+            title: p.title,
+            type: p.type,
+            format: p.format,
+            genres: p.genres,
+            updatedAt: p.updated_at,
+            logline: p.logline,
             detailedStory: p.detailed_story,
+            blueprint: p.blueprint,
+            theme: p.theme,
+            setting: p.setting,
             protagonistGoal: p.protagonist_goal,
             targetMetadata: p.target_metadata,
-            scenes: p.scenes?.sort((a: Scene, b: Scene) => a.number - b.number) || [],
-            episodes: p.episodes?.sort((a: Episode, b: Episode) => a.number - b.number) || [],
-            characters: p.characters || [],
-            locations: p.locations || [],
+            
+            scenes: (p.scenes || []).map((s: any) => ({
+                id: s.id,
+                title: s.title,
+                number: s.number,
+                episodeId: s.episode_id,
+                content: s.content,
+                summary: s.summary
+            })).sort((a: any, b: any) => a.number - b.number),
+
+            episodes: (p.episodes || []).map((e: any) => ({
+                id: e.id,
+                title: e.title,
+                number: e.number,
+                summary: e.summary
+            })).sort((a: any, b: any) => a.number - b.number),
+
+            characters: (p.characters || []).map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                role: c.role,
+                archetype: c.archetype,
+                description: c.description,
+                traits: c.traits,
+                relationships: c.relationships || [],
+                arcCompletion: c.arc_completion
+            })),
+
+            locations: (p.locations || []).map((l: any) => ({
+                id: l.id,
+                name: l.name,
+                type: l.type,
+                description: l.description,
+                sensoryDetails: l.sensory_details
+            })),
+
             chatHistory: (p.chatHistory || []).map((msg: any) => ({
                 id: msg.id,
                 role: msg.role,
@@ -148,10 +191,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         }));
 
         setProjects(formattedProjects);
+        setIsOffline(false);
 
     } catch (err: any) {
         console.warn("Error fetching projects. Using Demo Project.", err.message || err);
         setProjects([DEMO_PROJECT]);
+        setIsOffline(true);
     } finally {
         setIsLoading(false);
     }
@@ -231,7 +276,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                     .single();
                 
                 if (sceneError) throw sceneError;
-                if (sceneData) initialScenes = [sceneData];
+                if (sceneData) initialScenes = [{ ...sceneData, episodeId: sceneData.episode_id }];
             }
         } else if (type === 'Novel') {
              const { data: sceneData, error: sceneError } = await supabase
@@ -271,8 +316,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         });
 
         const newProject: Project = {
-            ...projData,
-            detailedStory: projData.detailed_story, // Map snake_case to camelCase
+            id: projData.id,
+            title: projData.title,
+            type: projData.type,
+            format: projData.format,
+            genres: projData.genres,
+            updatedAt: projData.updated_at,
+            logline: projData.logline,
+            detailedStory: projData.detailed_story,
+            blueprint: projData.blueprint,
+            theme: projData.theme,
+            setting: projData.setting,
             protagonistGoal: projData.protagonist_goal,
             targetMetadata: projData.target_metadata,
             scenes: initialScenes,
@@ -288,6 +342,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         setProjects(prev => [newProject, ...prev]);
         setCurrentProjectId(newProject.id);
+        setIsOffline(false);
         if (initialScenes.length > 0) {
             setCurrentSceneId(initialScenes[0].id);
             navigateTo('editor');
@@ -362,6 +417,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         
         setProjects(prev => [fallbackProject, ...prev]);
         setCurrentProjectId(fallbackId);
+        setIsOffline(true);
         if (initialScenes.length > 0) {
             setCurrentSceneId(initialScenes[0].id);
             navigateTo('editor');
@@ -520,7 +576,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         // Update with real ID
         const finalProject = { 
             ...currentProject, 
-            scenes: [...currentProject.scenes.filter(s => s.id !== tempScene.id), newScene] 
+            scenes: [...currentProject.scenes.filter(s => s.id !== tempScene.id), { ...newScene, episodeId: newScene.episode_id }] 
         };
         setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
         setCurrentSceneId(newScene.id);
@@ -626,7 +682,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         
         const finalProject = { 
             ...currentProject, 
-            characters: [...currentProject.characters.filter(c => c.id !== tempChar.id), newChar] 
+            characters: [...currentProject.characters.filter(c => c.id !== tempChar.id), { ...newChar, arcCompletion: newChar.arc_completion }] 
         };
         setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
 
@@ -680,7 +736,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         const finalProject = { 
             ...currentProject, 
-            locations: [...currentProject.locations.filter(l => l.id !== tempLoc.id), newLoc] 
+            locations: [...currentProject.locations.filter(l => l.id !== tempLoc.id), { ...newLoc, sensoryDetails: newLoc.sensory_details }] 
         };
         setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
     } catch (err) {
@@ -749,6 +805,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       isSidebarOpen,
       isRightPanelOpen,
       isLoading,
+      isOffline,
       setSidebarOpen,
       setRightPanelOpen,
       setCurrentProject: setCurrentProjectId,
