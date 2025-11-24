@@ -1,9 +1,9 @@
 
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage } from '../types';
+import { supabase } from '../lib/supabase';
 
-// Robust ID Generator to prevent React key collisions
+// Robust ID Generator (used for temporary optimistic updates or fallbacks)
 const generateId = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
@@ -11,73 +11,33 @@ const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
-// Initial Seed Data (Kurdish)
-const SEED_PROJECT: Project = {
-  id: 'proj-1',
-  title: 'دواین ئاماژە',
-  type: 'Screenplay',
-  format: 'Feature',
-  genres: ['خەیاڵی زانستی', 'هەستبزوێن', 'دەروونی'],
-  logline: 'فڕۆکەوانێکی گیرخواردوو و ژیری دەستکردێکی تێکچوو دەبێت هاوکاری یەکتر بکەن بۆ ڕزگاربوون لە کەشتییەک پێش ئەوەی بکەوێتە ناو کونی ڕەش.',
-  detailedStory: 'چیرۆکەکە لە ساڵی ٢١٥٠ ڕوودەدات. کەشتی ئیجیس کە ئەرکی گواستنەوەی سەرچاوەی وزە بوو لە کەناری گەردوون، تووشی ڕووداوێکی نادیار دەبێت. ئاریا تەنها ڕزگاربووە. زیرەکی دەستکردی کەشتییەکە، ئیجیس، دووچاری شیزۆفرینیا بووە. دەبێت ئاریا متمانە بە ئیجیس بکات سەرەڕای گومانەکانی...',
-  theme: 'متمانە بەرامبەر لۆژیک',
-  setting: 'کەشتی ئاسمانی ئیجیس',
-  protagonistGoal: 'گەڕاندنەوەی وزە بۆ بزوێنەرەکان و ڕزگاربوون.',
-  updatedAt: new Date().toISOString(),
-  characters: [
-    { 
-        id: 'c1', 
-        name: 'ئاریا', 
-        role: 'Protagonist', 
-        archetype: 'ڕزگاربوو', 
-        arcCompletion: 30, 
-        traits: ['کەلە ڕەق', 'لێهاتوو'], 
-        description: 'فڕۆکەوانێک لە بۆشایی ئاسمان گیر دەخوات.',
-        relationships: [{ targetId: 'c2', type: 'Dependent', description: 'پێویستی بە ئیجیسە بۆ مانەوە' }] 
-    },
-    { 
-        id: 'c2', 
-        name: 'ئیجیس (AI)', 
-        role: 'Ally/Antagonist', 
-        archetype: 'زیرەکی دەستکرد', 
-        arcCompletion: 65, 
-        traits: ['لۆژیکی', 'تێکچوو'], 
-        description: 'مێشکی کەشتییەکە، لە ئێستادا کێشەی هەیە.',
-        relationships: [{ targetId: 'c1', type: 'Protector', description: ' پرۆگرام کراوە بۆ پاراستن' }] 
-    }
-  ],
-  locations: [
-    { id: 'l1', name: 'کەشتی ئیجیس - کۆکپیت', type: 'INT', description: 'تەنگ، شێوازی سەربازی. شاشەی هۆلۆگرافی دەتروسکێنەوە.' }
-  ],
-  scenes: [
-    { 
-      id: 's1', 
-      number: 1, 
-      title: 'دەرەوە. بۆشایی ئاسمان - بێدەنگی', 
-      content: `<div class="sp-slug">دەرەوە. بۆشایی ئاسمان - بێدەنگی</div><div class="sp-action">تاریکی بێ کۆتایی. ئەستێرەکان سارد و دوور دەردەکەون.</div>`,
-      summary: 'دیمەنی سەرەتا بۆ پیشاندانی کەشتییەکە. تەنیایی هەست پێ دەکرێت.'
-    },
-    { 
-      id: 's2', 
-      number: 2, 
-      title: 'ناوەوە. کۆکپیت - بەردەوام', 
-      content: `<div class="sp-slug">ناوەوە. کۆکپیت - بەردەوام</div>
-<div class="sp-action">ڕووناکی سووری فریاگوزاری لێ دەدات.</div>
-<div class="sp-action"><span class="text-primary-400 border-b border-dashed border-primary-500/30 cursor-help" title="Character: Aria">ئاریا (٣٠ ساڵ)</span> بە قایشی کورسییەکەیەوە هەڵواسراوە.</div>
-<div class="sp-character">ئاریا</div>
-<div class="sp-parenthetical">(بە هەناسەبڕکێوە)</div>
-<div class="sp-dialogue">کۆمپیوتەر. ڕاپۆرت بدە.</div>`,
-      summary: 'ئاریا بە برینداری خەبەری دەبێتەوە. کەشتییەکە تێکچووە.'
-    }
-  ],
-  chatHistory: [
-    { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم پڕۆژەیە.' },
-    { 
-      id: '2', 
-      role: 'model', 
-      text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.',
-    }
-  ]
+const DEMO_PROJECT: Project = {
+    id: 'demo-offline',
+    title: 'Demo Project (Offline)',
+    type: 'Screenplay',
+    format: 'Feature',
+    genres: ['Sci-Fi'],
+    updatedAt: new Date().toISOString(),
+    logline: 'This project is loaded because a connection to the database could not be established.',
+    detailedStory: '',
+    theme: '',
+    setting: '',
+    protagonistGoal: '',
+    episodes: [],
+    scenes: [
+        {
+            id: 'demo-scene-1',
+            number: 1,
+            title: 'INT. DEMO - DAY',
+            content: '<div class="sp-slug">INT. DEMO - DAY</div><div class="sp-action">The system is running in offline mode.</div><div class="sp-character">SYSTEM</div><div class="sp-dialogue">Connection failed. Loaded demo project.</div>',
+            summary: 'Introduction to offline mode.'
+        }
+    ],
+    characters: [],
+    locations: [],
+    chatHistory: [
+        { id: 'msg-1', role: 'model', text: 'I noticed the database connection failed. I have loaded this demo project so you can still explore the interface.' }
+    ]
 };
 
 type ConfirmationState = {
@@ -92,6 +52,7 @@ interface ProjectContextType {
   currentView: ViewType;
   isSidebarOpen: boolean;
   isRightPanelOpen: boolean;
+  isLoading: boolean;
   setSidebarOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   setCurrentProject: (id: string) => void;
@@ -117,6 +78,7 @@ interface ProjectContextType {
   addEpisode: () => void;
   updateEpisode: (episodeId: string, title: string) => void;
   addChatMessage: (projectId: string, message: ChatMessage) => void;
+  replaceTextInProject: (projectId: string, search: string, replace: string) => void;
   confirmationState: ConfirmationState;
   showConfirmation: (message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
@@ -125,29 +87,71 @@ interface ProjectContextType {
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [projects, setProjects] = useState<Project[]>([SEED_PROJECT]);
-  const [currentProjectId, setCurrentProjectId] = useState<string>('proj-1');
-  const [currentSceneId, setCurrentSceneId] = useState<string>('s2');
-  const [currentView, setCurrentView] = useState<ViewType>('editor');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<string>('');
+  const [currentSceneId, setCurrentSceneId] = useState<string>('');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [isLoading, setIsLoading] = useState(true);
   
   const [isSidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [isRightPanelOpen, setRightPanelOpen] = useState(true);
   
   const [confirmationState, setConfirmationState] = useState<ConfirmationState>(null);
 
+  // Debounce ref for scene content updates
+  const sceneUpdateTimeoutRef = useRef<Record<string, any>>({});
+
+  // Fetch initial data
   useEffect(() => {
-    const saved = localStorage.getItem('zoer-projects');
-    if (saved) {
-      setProjects(JSON.parse(saved));
-    }
+    fetchProjects();
     if (window.innerWidth < 768) {
         setRightPanelOpen(false);
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('zoer-projects', JSON.stringify(projects));
-  }, [projects]);
+  const fetchProjects = async () => {
+    setIsLoading(true);
+    try {
+        const { data: projectsData, error } = await supabase
+            .from('projects')
+            .select(`
+                *,
+                scenes (*),
+                characters (*),
+                locations (*),
+                episodes (*),
+                chatHistory:chat_history (*)
+            `)
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Sort relations client-side and Map DB fields to TS types
+        const formattedProjects = (projectsData || []).map(p => ({
+            ...p,
+            detailedStory: p.detailed_story,
+            protagonistGoal: p.protagonist_goal,
+            scenes: p.scenes?.sort((a: Scene, b: Scene) => a.number - b.number) || [],
+            episodes: p.episodes?.sort((a: Episode, b: Episode) => a.number - b.number) || [],
+            characters: p.characters || [],
+            locations: p.locations || [],
+            chatHistory: (p.chatHistory || []).map((msg: any) => ({
+                id: msg.id,
+                role: msg.role,
+                text: msg.text,
+                hasContradiction: msg.has_contradiction
+            })).sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+        }));
+
+        setProjects(formattedProjects);
+
+    } catch (err: any) {
+        console.warn("Error fetching projects. Using Demo Project.", err.message || err);
+        setProjects([DEMO_PROJECT]);
+    } finally {
+        setIsLoading(false);
+    }
+  };
 
   const currentProject = projects.find(p => p.id === currentProjectId) || null;
 
@@ -166,120 +170,291 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setConfirmationState(null);
   };
 
-  const addProject = (
+  const addProject = async (
       title: string, 
       type: ProjectType, 
       format: ProjectFormat,
       genres: string[], 
       metadata: { logline: string, detailedStory: string, theme: string, setting: string, protagonistGoal: string }
   ) => {
-    const epId = generateId();
-    const sceneId = generateId();
-    
-    let initialScenes: Scene[] = [];
-    let initialEpisodes: Episode[] = [];
+    try {
+        // 1. Create Project
+        const { data: projData, error: projError } = await supabase
+            .from('projects')
+            .insert({
+                title,
+                type,
+                format,
+                genres,
+                logline: metadata.logline,
+                detailed_story: metadata.detailedStory,
+                theme: metadata.theme,
+                setting: metadata.setting,
+                protagonist_goal: metadata.protagonistGoal
+            })
+            .select()
+            .single();
 
-    if (type === 'Serial') {
-        initialEpisodes = [{ id: epId, title: 'ئەڵقەی ١: سەرەتا', number: 1 }];
-        initialScenes = [{ 
-            id: sceneId, 
-            number: 1, 
-            title: 'TEASER', 
-            content: `<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>`,
-            episodeId: epId 
-        }];
-    } else if (type === 'Novel') {
-        initialScenes = [{ 
-            id: sceneId, 
-            number: 1, 
-            title: 'بەشی ١', 
-            content: '<div class="novel-chapter">بەشی ١</div><p>لێرەوە دەست بە نووسین بکە...</p>' 
-        }];
-    } else {
-        initialScenes = [{ 
-            id: sceneId, 
-            number: 1, 
-            title: 'ناوەوە. شوێن - ڕۆژ', 
-            content: '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action">وەسفی کردار...</div>' 
-        }];
-    }
+        if (projError || !projData) throw projError;
 
-    const newProject: Project = {
-      id: generateId(),
-      title, type, format, genres, ...metadata,
-      updatedAt: new Date().toISOString(),
-      scenes: initialScenes,
-      episodes: initialEpisodes,
-      characters: [], locations: [],
-      chatHistory: [
-        { id: '1', role: 'user', text: 'پێویستم بە یارمەتییە لەم پڕۆژەیە.' },
-        { 
-          id: '2', 
-          role: 'model', 
-          text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.',
+        const newProjectId = projData.id;
+        let initialScenes: Scene[] = [];
+        let initialEpisodes: Episode[] = [];
+
+        // 2. Create Initial Content based on Type
+        if (type === 'Serial') {
+            const { data: epData, error: epError } = await supabase
+                .from('episodes')
+                .insert({ project_id: newProjectId, title: 'ئەڵقەی ١: سەرەتا', number: 1 })
+                .select()
+                .single();
+            
+            if (epError) throw epError;
+            
+            if (epData) {
+                initialEpisodes = [epData];
+                const { data: sceneData, error: sceneError } = await supabase
+                    .from('scenes')
+                    .insert({
+                        project_id: newProjectId,
+                        episode_id: epData.id,
+                        number: 1,
+                        title: 'TEASER',
+                        content: '<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>'
+                    })
+                    .select()
+                    .single();
+                
+                if (sceneError) throw sceneError;
+                if (sceneData) initialScenes = [sceneData];
+            }
+        } else if (type === 'Novel') {
+             const { data: sceneData, error: sceneError } = await supabase
+                .from('scenes')
+                .insert({
+                    project_id: newProjectId,
+                    number: 1,
+                    title: 'بەشی ١',
+                    content: '<div class="novel-chapter">بەشی ١</div><p>لێرەوە دەست بە نووسین بکە...</p>'
+                })
+                .select()
+                .single();
+                
+             if (sceneError) throw sceneError;
+             if (sceneData) initialScenes = [sceneData];
+        } else {
+             const { data: sceneData, error: sceneError } = await supabase
+                .from('scenes')
+                .insert({
+                    project_id: newProjectId,
+                    number: 1,
+                    title: 'ناوەوە. شوێن - ڕۆژ',
+                    content: '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action">وەسفی کردار...</div>'
+                })
+                .select()
+                .single();
+                
+             if (sceneError) throw sceneError;
+             if (sceneData) initialScenes = [sceneData];
         }
-      ]
-    };
-    setProjects([...projects, newProject]);
-    setCurrentProjectId(newProject.id);
-    setCurrentSceneId(newProject.scenes[0].id);
-    navigateTo('editor');
+
+        // 3. Add Welcome Message
+        await supabase.from('chat_history').insert({
+            project_id: newProjectId,
+            role: 'model',
+            text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.'
+        });
+
+        const newProject: Project = {
+            ...projData,
+            detailedStory: projData.detailed_story, // Map snake_case to camelCase
+            protagonistGoal: projData.protagonist_goal,
+            scenes: initialScenes,
+            episodes: initialEpisodes,
+            characters: [],
+            locations: [],
+            chatHistory: [{ 
+                id: 'init', 
+                role: 'model', 
+                text: 'دەتوانم یارمەتیت بدەم. داوام لێ بکە دیمەنەکە شیبکەمەوە، پێشنیاری نووسین بکەم، یان دەستکاری زانیارییەکانی پڕۆژە بکەم.' 
+            }]
+        };
+
+        setProjects(prev => [newProject, ...prev]);
+        setCurrentProjectId(newProject.id);
+        if (initialScenes.length > 0) {
+            setCurrentSceneId(initialScenes[0].id);
+            navigateTo('editor');
+        } else {
+            navigateTo('dashboard');
+        }
+
+    } catch (err: any) {
+        console.warn("Supabase insert failed, utilizing local fallback.", err);
+        
+        // Fallback Logic
+        const fallbackId = generateId();
+        const now = new Date().toISOString();
+        
+        let initialScenes: Scene[] = [];
+        let initialEpisodes: Episode[] = [];
+
+        if (type === 'Serial') {
+             const epId = generateId();
+             initialEpisodes = [{
+                 id: epId,
+                 title: 'ئەڵقەی ١: سەرەتا',
+                 number: 1
+             }];
+             initialScenes = [{
+                 id: generateId(),
+                 number: 1,
+                 title: 'TEASER',
+                 content: '<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>',
+                 episodeId: epId
+             }];
+        } else if (type === 'Novel') {
+             initialScenes = [{
+                 id: generateId(),
+                 number: 1,
+                 title: 'بەشی ١',
+                 content: '<div class="novel-chapter">بەشی ١</div><p>لێرەوە دەست بە نووسین بکە...</p>'
+             }];
+        } else {
+             initialScenes = [{
+                 id: generateId(),
+                 number: 1,
+                 title: 'ناوەوە. شوێن - ڕۆژ',
+                 content: '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action">وەسفی کردار...</div>'
+             }];
+        }
+
+        const fallbackProject: Project = {
+            id: fallbackId,
+            title,
+            type,
+            format,
+            genres,
+            updatedAt: now,
+            logline: metadata.logline,
+            detailedStory: metadata.detailedStory,
+            theme: metadata.theme,
+            setting: metadata.setting,
+            protagonistGoal: metadata.protagonistGoal,
+            scenes: initialScenes,
+            episodes: initialEpisodes,
+            characters: [],
+            locations: [],
+            chatHistory: [{
+                id: generateId(),
+                role: 'model',
+                text: 'پڕۆژەکە بە شێوازی ناوخۆیی (Offline) دروستکرا چونکە پەیوەندی بە داتابەیسەوە نییە. (' + (err.message || 'Error Unknown') + ')'
+            }]
+        };
+        
+        setProjects(prev => [fallbackProject, ...prev]);
+        setCurrentProjectId(fallbackId);
+        if (initialScenes.length > 0) {
+            setCurrentSceneId(initialScenes[0].id);
+            navigateTo('editor');
+        } else {
+            navigateTo('dashboard');
+        }
+    }
   };
 
-  const updateProject = (id: string, data: Partial<Project>) => {
-      setProjects(projects.map(p => p.id === id ? { ...p, ...data } : p));
+  const updateProject = async (id: string, data: Partial<Project>) => {
+      // Optimistic Update
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      
+      try {
+          const dbData: any = { ...data };
+          // Map camelCase to snake_case for DB
+          if (data.detailedStory !== undefined) {
+              dbData.detailed_story = data.detailedStory;
+              delete dbData.detailedStory;
+          }
+          if (data.protagonistGoal !== undefined) {
+              dbData.protagonist_goal = data.protagonistGoal;
+              delete dbData.protagonistGoal;
+          }
+          // Remove relation arrays if present in partial update to avoid DB errors
+          delete dbData.scenes;
+          delete dbData.characters;
+          delete dbData.locations;
+          delete dbData.episodes;
+          delete dbData.chatHistory;
+
+          await supabase.from('projects').update({ ...dbData, updated_at: new Date() }).eq('id', id);
+      } catch (err) {
+          console.error("Error updating project:", err);
+      }
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
+    // Optimistic Update
     const updatedProjects = projects.filter(p => p.id !== id);
     setProjects(updatedProjects);
 
     if (currentProjectId === id) {
-        if (updatedProjects.length > 0) {
-            setCurrentProjectId(updatedProjects[0].id);
-            setCurrentSceneId(updatedProjects[0].scenes[0].id);
-        } else {
-            setCurrentProjectId('');
-            setCurrentSceneId('');
-        }
+        setCurrentProjectId('');
+        setCurrentSceneId('');
+        navigateTo('dashboard');
+    }
+
+    try {
+        await supabase.from('projects').delete().eq('id', id);
+    } catch (err) {
+        console.error("Error deleting project:", err);
     }
   };
 
-  const importProject = (projectData: any) => {
-      if (!projectData.title || !projectData.scenes) {
-          alert("فایلی پڕۆژە هەڵەیە");
-          return;
-      }
-      
-      const newProject: Project = { 
-          ...projectData, 
-          id: generateId(),
-          updatedAt: new Date().toISOString()
-      };
-      
-      setProjects(prev => [...prev, newProject]);
+  const importProject = async (projectData: any) => {
+      alert("Importing directly to Supabase is not fully implemented in this demo.");
   };
 
-  const addEpisode = () => {
+  const addEpisode = async () => {
       if (!currentProject || currentProject.type !== 'Serial') return;
-      const nextNum = (currentProject.episodes?.length || 0) + 1;
-      const newEp: Episode = {
-          id: generateId(),
-          title: `ئەڵقەی ${nextNum}`,
-          number: nextNum
-      };
       
-      const updatedProject = { ...currentProject, episodes: [...(currentProject.episodes || []), newEp] };
-      setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+      const nextNum = (currentProject.episodes?.length || 0) + 1;
+      const title = `ئەڵقەی ${nextNum}`;
+      
+      // Optimistic
+      const tempEp = { id: generateId(), title, number: nextNum, project_id: currentProject.id };
+      const updatedProject = { ...currentProject, episodes: [...(currentProject.episodes || []), tempEp] };
+      setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+
+      try {
+          const { data, error } = await supabase
+            .from('episodes')
+            .insert({ project_id: currentProject.id, title, number: nextNum })
+            .select()
+            .single();
+          
+          if (error || !data) throw error;
+          
+          // Replace temp with real
+          const finalEpProject = { 
+              ...currentProject, 
+              episodes: [...(currentProject.episodes || []).filter(e => e.id !== tempEp.id), data] 
+          };
+          setProjects(prev => prev.map(p => p.id === currentProject.id ? finalEpProject : p));
+
+      } catch (err) {
+          console.error("Error adding episode", err);
+      }
   };
 
-  const updateEpisode = (episodeId: string, title: string) => {
-      if (!currentProject || !currentProject.episodes) return;
-      const updatedEpisodes = currentProject.episodes.map(e => e.id === episodeId ? { ...e, title } : e);
-      setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, episodes: updatedEpisodes } : p));
+  const updateEpisode = async (episodeId: string, title: string) => {
+      if (!currentProject) return;
+      
+      const updatedEpisodes = (currentProject.episodes || []).map(e => e.id === episodeId ? { ...e, title } : e);
+      setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...currentProject, episodes: updatedEpisodes } : p));
+
+      await supabase.from('episodes').update({ title }).eq('id', episodeId);
   };
 
-  const addScene = (episodeId?: string) => {
+  const addScene = async (episodeId?: string) => {
     if (!currentProject) return;
     
     let targetEpisodeId = episodeId;
@@ -300,22 +475,49 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         newTitle = `دیمەنی ${nextNum}`;
     }
 
-    const newScene: Scene = {
-      id: generateId(),
-      number: nextNum,
-      title: newTitle,
-      content: newContent,
-      episodeId: targetEpisodeId,
-      summary: ''
+    // Optimistic
+    const tempScene: Scene = {
+        id: generateId(),
+        number: nextNum,
+        title: newTitle,
+        content: newContent,
+        episodeId: targetEpisodeId
     };
     
-    const updatedProject = { ...currentProject, scenes: [...currentProject.scenes, newScene] };
-    setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
-    setCurrentSceneId(newScene.id);
+    const updatedProject = { ...currentProject, scenes: [...currentProject.scenes, tempScene] };
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+    setCurrentSceneId(tempScene.id);
     navigateTo('editor');
+
+    try {
+        const { data: newScene, error } = await supabase
+            .from('scenes')
+            .insert({
+                project_id: currentProject.id,
+                episode_id: targetEpisodeId,
+                number: nextNum,
+                title: newTitle,
+                content: newContent
+            })
+            .select()
+            .single();
+
+        if (error || !newScene) throw error;
+        
+        // Update with real ID
+        const finalProject = { 
+            ...currentProject, 
+            scenes: [...currentProject.scenes.filter(s => s.id !== tempScene.id), newScene] 
+        };
+        setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
+        setCurrentSceneId(newScene.id);
+
+    } catch (err) {
+        console.error("Error adding scene:", err);
+    }
   };
 
-  const deleteScene = (sceneId: string) => {
+  const deleteScene = async (sceneId: string) => {
       if (!currentProject) return;
 
       const sceneIndex = currentProject.scenes.findIndex(s => s.id === sceneId);
@@ -323,17 +525,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       const updatedScenes = currentProject.scenes.filter(s => s.id !== sceneId);
 
+      // Optimistic Update
+      const updatedProject = { ...currentProject, scenes: updatedScenes };
+      setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+      
       if (currentSceneId === sceneId) {
-          if (updatedScenes.length === 0) {
-              setCurrentSceneId('');
-          } else {
+          if (updatedScenes.length > 0) {
               const newIndex = Math.max(0, sceneIndex - 1);
               setCurrentSceneId(updatedScenes[newIndex].id);
+          } else {
+              setCurrentSceneId('');
           }
       }
 
-      const updatedProject = { ...currentProject, scenes: updatedScenes };
-      setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+      await supabase.from('scenes').delete().eq('id', sceneId);
   };
 
   const updateSceneContent = (sceneId: string, content: string) => {
@@ -353,40 +558,125 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
     }
 
+    // 1. Local Optimistic Update (Instant)
     const updatedScenes = currentProject.scenes.map(s => 
       s.id === sceneId ? { ...s, content, title: newTitle || s.title } : s
     );
-    setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
+
+    // 2. Debounced Database Update
+    if (sceneUpdateTimeoutRef.current[sceneId]) {
+        clearTimeout(sceneUpdateTimeoutRef.current[sceneId]);
+    }
+
+    sceneUpdateTimeoutRef.current[sceneId] = setTimeout(async () => {
+        const updatePayload: any = { content };
+        if (newTitle) updatePayload.title = newTitle;
+        
+        await supabase.from('scenes').update(updatePayload).eq('id', sceneId);
+        await supabase.from('projects').update({ updated_at: new Date() }).eq('id', currentProject.id);
+    }, 1500); // 1.5s debounce
   };
 
-  const updateSceneSummary = (sceneId: string, summary: string) => {
+  const updateSceneSummary = async (sceneId: string, summary: string) => {
     if (!currentProject) return;
     const updatedScenes = currentProject.scenes.map(s => s.id === sceneId ? { ...s, summary } : s);
-    setProjects(projects.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...currentProject, scenes: updatedScenes } : p));
+    
+    await supabase.from('scenes').update({ summary }).eq('id', sceneId);
   };
 
-  const addCharacter = (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => {
+  const addCharacter = async (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => {
     if (!currentProject) return;
-    const newChar: Character = { ...char, id: generateId(), arcCompletion: 0, relationships: [] };
-    const updatedProject = { ...currentProject, characters: [...currentProject.characters, newChar] };
-    setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+    
+    // Optimistic
+    const tempChar = { ...char, id: generateId(), arcCompletion: 0, relationships: [] };
+    const updatedProject = { ...currentProject, characters: [...currentProject.characters, tempChar] };
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+
+    try {
+        const { data: newChar, error } = await supabase
+            .from('characters')
+            .insert({
+                project_id: currentProject.id,
+                name: char.name,
+                role: char.role,
+                archetype: char.archetype,
+                description: char.description,
+                traits: char.traits,
+                relationships: []
+            })
+            .select()
+            .single();
+        
+        if (error || !newChar) throw error;
+        
+        const finalProject = { 
+            ...currentProject, 
+            characters: [...currentProject.characters.filter(c => c.id !== tempChar.id), newChar] 
+        };
+        setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
+
+    } catch (err) {
+        console.error("Error adding character:", err);
+    }
   };
 
-  const updateCharacter = (updatedChar: Character) => {
+  const updateCharacter = async (updatedChar: Character) => {
     if (!currentProject) return;
+    
+    // Optimistic
     const updatedChars = currentProject.characters.map(c => c.id === updatedChar.id ? updatedChar : c);
-    const updatedProject = { ...currentProject, characters: updatedChars };
-    setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? { ...currentProject, characters: updatedChars } : p));
+
+    try {
+        await supabase.from('characters').update({
+            name: updatedChar.name,
+            role: updatedChar.role,
+            archetype: updatedChar.archetype,
+            description: updatedChar.description,
+            traits: updatedChar.traits,
+            relationships: updatedChar.relationships
+        }).eq('id', updatedChar.id);
+    } catch (err) {
+        console.error("Error updating character:", err);
+    }
   };
 
-  const addLocation = (loc: Omit<Location, 'id'>) => {
+  const addLocation = async (loc: Omit<Location, 'id'>) => {
     if (!currentProject) return;
-    const newLoc: Location = { ...loc, id: generateId() };
-    const updatedProject = { ...currentProject, locations: [...currentProject.locations, newLoc] };
-    setProjects(projects.map(p => p.id === currentProject.id ? updatedProject : p));
+
+    // Optimistic
+    const tempLoc = { ...loc, id: generateId() };
+    const updatedProject = { ...currentProject, locations: [...currentProject.locations, tempLoc] };
+    setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+
+    try {
+        const { data: newLoc, error } = await supabase
+            .from('locations')
+            .insert({
+                project_id: currentProject.id,
+                name: loc.name,
+                type: loc.type,
+                description: loc.description
+            })
+            .select()
+            .single();
+
+        if (error || !newLoc) throw error;
+
+        const finalProject = { 
+            ...currentProject, 
+            locations: [...currentProject.locations.filter(l => l.id !== tempLoc.id), newLoc] 
+        };
+        setProjects(prev => prev.map(p => p.id === currentProject.id ? finalProject : p));
+    } catch (err) {
+        console.error("Error adding location:", err);
+    }
   };
 
-  const addChatMessage = (projectId: string, message: ChatMessage) => {
+  const addChatMessage = async (projectId: string, message: ChatMessage) => {
+    // Optimistic
     setProjects(prev => prev.map(p => {
         if (p.id === projectId) {
             const history = p.chatHistory || [];
@@ -394,6 +684,47 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
         return p;
     }));
+
+    // DB
+    try {
+        await supabase.from('chat_history').insert({
+            project_id: projectId,
+            role: message.role,
+            text: message.text,
+            has_contradiction: message.hasContradiction
+        });
+    } catch (err) {
+        console.error("Error saving chat:", err);
+    }
+  };
+
+  const replaceTextInProject = async (projectId: string, search: string, replace: string) => {
+    // 1. Optimistic Update
+    setProjects(prev => prev.map(p => {
+        if (p.id !== projectId) return p;
+        const updatedScenes = p.scenes.map(s => ({
+            ...s,
+            content: s.content.split(search).join(replace),
+            title: s.title ? s.title.split(search).join(replace) : s.title,
+            summary: s.summary ? s.summary.split(search).join(replace) : s.summary
+        }));
+        return { ...p, scenes: updatedScenes };
+    }));
+
+    // 2. Database Update
+    if (currentProject) {
+        for (const scene of currentProject.scenes) {
+             const newContent = scene.content.split(search).join(replace);
+             const newTitle = scene.title ? scene.title.split(search).join(replace) : scene.title;
+             
+             if (newContent !== scene.content || newTitle !== scene.title) {
+                 await supabase.from('scenes').update({
+                     content: newContent,
+                     title: newTitle
+                 }).eq('id', scene.id);
+             }
+        }
+    }
   };
 
   return (
@@ -404,6 +735,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       currentView,
       isSidebarOpen,
       isRightPanelOpen,
+      isLoading,
       setSidebarOpen,
       setRightPanelOpen,
       setCurrentProject: setCurrentProjectId,
@@ -423,6 +755,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       addEpisode,
       updateEpisode,
       addChatMessage,
+      replaceTextInProject,
       confirmationState,
       showConfirmation,
       hideConfirmation,

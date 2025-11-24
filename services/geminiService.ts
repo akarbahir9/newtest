@@ -37,6 +37,33 @@ const updateCharacterTool: FunctionDeclaration = {
   }
 };
 
+const updateSceneTool: FunctionDeclaration = {
+  name: "update_scene",
+  description: "Rewrite the content of a specific scene. Use this to change dialogue, action, or rewrite the whole scene based on user request. You MUST provide the FULL valid HTML content for the scene, maintaining the screenplay formatting classes (sp-slug, sp-action, sp-character, sp-dialogue, sp-parenthetical).",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      sceneId: { type: Type.STRING, description: "The ID of the scene to update. Use 'current' for the active scene." },
+      content: { type: Type.STRING, description: "The full new HTML content of the scene." }
+    },
+    required: ["sceneId", "content"]
+  }
+};
+
+const findReplaceTool: FunctionDeclaration = {
+  name: "find_replace",
+  description: "Replace a specific word or exact phrase across the entire project or just the current scene. Useful for renaming characters or changing repeated terms.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      search: { type: Type.STRING, description: "The exact text to find." },
+      replace: { type: Type.STRING, description: "The text to replace it with." },
+      scope: { type: Type.STRING, enum: ["project", "scene"], description: "Scope of the replacement: 'project' for all scenes, 'scene' for current scene only." }
+    },
+    required: ["search", "replace", "scope"]
+  }
+};
+
 export const generateAssistantResponse = async (
   history: { role: string; parts: { text: string }[] }[],
   message: string,
@@ -62,8 +89,10 @@ export const generateAssistantResponse = async (
     3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
     
     CAPABILITIES:
-    - You can update project metadata (title, logline, detailed story, etc.) if the user asks.
-    - You can update character details if the user asks.
+    - You can update project metadata (title, logline, detailed story, etc.).
+    - You can update character details.
+    - You can REWRITE specific scenes using the 'update_scene' tool.
+    - You can Find & Replace text globally or locally using the 'find_replace' tool.
     - If you perform an update, confirm it in the text response.
 
     MODES OF OPERATION:
@@ -73,11 +102,9 @@ export const generateAssistantResponse = async (
     - Analyze or rewrite ONLY the selected text.
     - Wrap the rewritten segment in <screenplay> tags.
 
-    B. SCENE MODE (General):
-    If the user asks to "check", "review", "analyze", or "critique" the scene (and NO selected text is provided):
-    1. First, provide a bulleted list of feedback (Pacing, Dialogue, Conflict, formatting) in Kurdish.
-    2. Then, provide a "SUGGESTED REWRITE" or "IMPROVED VERSION" block.
-    3. This rewrite block MUST be wrapped in <screenplay> tags.
+    B. EDITING & UPDATING:
+    - If the user asks to "change X to Y" in the whole script, use 'find_replace' with scope='project'.
+    - If the user asks to rewrite the current scene or change specific dialogue/action in it, generate the NEW full HTML for the scene and use 'update_scene'.
 
     C. GENERAL CHAT & ANALYSIS:
     If the user asks for information, summaries, or character analysis:
@@ -94,7 +121,7 @@ export const generateAssistantResponse = async (
       model,
       config: {
         systemInstruction,
-        tools: [{ functionDeclarations: [updateProjectTool, updateCharacterTool] }],
+        tools: [{ functionDeclarations: [updateProjectTool, updateCharacterTool, updateSceneTool, findReplaceTool] }],
       },
       history: history,
     });

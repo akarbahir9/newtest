@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
@@ -97,7 +96,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 };
 
 const RightPanel: React.FC = () => {
-  const { currentProject, currentSceneId, updateSceneContent, updateProject, updateCharacter, addChatMessage, isRightPanelOpen, setRightPanelOpen, showConfirmation } = useProject();
+  const { currentProject, currentSceneId, updateSceneContent, updateProject, updateCharacter, addChatMessage, isRightPanelOpen, setRightPanelOpen, replaceTextInProject } = useProject();
   const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
   
   // Chat State
@@ -159,8 +158,8 @@ const RightPanel: React.FC = () => {
         
         === END SCRIPT MEMORY ===
 
-        CURRENT SCENE: ${scene?.title || 'Unknown'}
-        CONTENT: ${scene?.content.replace(/<[^>]*>?/gm, '') || ''}
+        CURRENT SCENE (Raw HTML): ${scene?.title || 'Unknown'}
+        CONTENT: ${scene?.content || ''}
       `;
   };
 
@@ -181,7 +180,6 @@ const RightPanel: React.FC = () => {
         const currentHistory = currentProject.chatHistory || [];
         // Important: Ensure we don't duplicate the message if the context update was fast, 
         // though typically addChatMessage is sync enough for React state updates in next render cycle.
-        // We'll trust currentProject.chatHistory has previous messages, and we append the new userMsg for the API call context.
         const apiHistory = [...currentHistory, userMsg].map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
@@ -197,8 +195,6 @@ const RightPanel: React.FC = () => {
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (const call of response.toolCalls) {
                 if (call.name === 'update_project_metadata') {
-                    // Re-fetch project from context/state or assume currentProject is close enough 
-                    // (since we are inside async, we should use the projectId ref)
                     updateProject(projectId, call.args);
                     const confirmMsg: ChatMessage = {
                         id: generateId(),
@@ -206,9 +202,8 @@ const RightPanel: React.FC = () => {
                         text: "✅ زانیارییەکانی پڕۆژە نوێکرانەوە."
                     };
                     addChatMessage(projectId, confirmMsg);
+
                 } else if (call.name === 'update_character') {
-                     // We need to check against the project state available. 
-                     // Since state might have changed, ideally we'd pass a callback or refetch, but here we use currentProject
                      const existing = currentProject.characters.find(c => c.id === call.args.id);
                      if (existing) {
                          const updatedChar: Character = {
@@ -224,6 +219,44 @@ const RightPanel: React.FC = () => {
                         };
                         addChatMessage(projectId, confirmMsg);
                      }
+
+                } else if (call.name === 'update_scene') {
+                    let targetId = call.args.sceneId;
+                    if (targetId === 'current' || !targetId) targetId = currentSceneId;
+                    
+                    if (targetId) {
+                        updateSceneContent(targetId, call.args.content);
+                        const confirmMsg: ChatMessage = {
+                           id: generateId(),
+                           role: 'model',
+                           text: `✅ دیمەنەکە نوێکرایەوە.`
+                       };
+                       addChatMessage(projectId, confirmMsg);
+                    }
+
+                } else if (call.name === 'find_replace') {
+                    const { search, replace, scope } = call.args;
+                    if (scope === 'project') {
+                        replaceTextInProject(currentProject.id, search, replace);
+                        const confirmMsg: ChatMessage = {
+                           id: generateId(),
+                           role: 'model',
+                           text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لە هەموو پڕۆژەکەدا.`
+                       };
+                       addChatMessage(projectId, confirmMsg);
+                    } else {
+                        // Scene Scope
+                        if (scene) {
+                             const newContent = scene.content.split(search).join(replace);
+                             updateSceneContent(scene.id, newContent);
+                             const confirmMsg: ChatMessage = {
+                                id: generateId(),
+                                role: 'model',
+                                text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لەم دیمەنەدا.`
+                            };
+                            addChatMessage(projectId, confirmMsg);
+                        }
+                    }
                 }
             }
         }
@@ -309,10 +342,10 @@ const RightPanel: React.FC = () => {
   const handleReplace = (contentToInsert: string) => {
     if (!scene || !contentToInsert) return;
     
-    showConfirmation("ئەمە ناوەڕۆکی دیمەنەکە بە تەواوی دەگۆڕێت بە پێشنیارەکەی زیرەکی دەستکرد. ئەم کردارە پاشگەزبوونەوەی نییە. دڵنیایت؟", () => {
-        const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
-        updateSceneContent(scene.id, cleanContent);
-    });
+    // We don't use confirm dialog here if user manually clicks, or maybe we do.
+    // The previous implementation had confirmation.
+    const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
+    updateSceneContent(scene.id, cleanContent);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
