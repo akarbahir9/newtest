@@ -502,13 +502,13 @@ const Dashboard: React.FC = () => {
       {/* Create Modal */}
       {showNewProjectModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[95vh]">
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[95vh] m-4">
                   <h3 className="text-lg font-medium text-zinc-100 mb-4">دەستپێکردنی پڕۆژەی نوێ</h3>
                   <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
-                      {/* ... Form Content (Same as before) ... */}
+                      {/* ... Form Content ... */}
                       <div className="space-y-3">
                           <label className="block text-xs text-zinc-500 font-semibold uppercase tracking-wider">جۆر هەڵبژێرە</label>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               <div 
                                 onClick={() => setProjectType('Screenplay')}
                                 className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Screenplay' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
@@ -536,7 +536,7 @@ const Dashboard: React.FC = () => {
                       {projectType === 'Screenplay' && (
                           <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                               <label className="block text-xs text-zinc-500">فۆرماتی سیناریۆ</label>
-                              <div className="flex gap-3">
+                              <div className="flex flex-col sm:flex-row gap-3">
                                   <button 
                                     type="button"
                                     onClick={() => setProjectFormat('Feature')}
@@ -608,7 +608,7 @@ const Dashboard: React.FC = () => {
                                   />
                               </div>
                               
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div>
                                       <label className="block text-xs text-zinc-500 mb-1">بابەت (Theme)</label>
                                       <input 

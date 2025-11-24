@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace
+  FileCheck, Replace, PanelLeft
 } from 'lucide-react';
 import { generateAssistantResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -318,11 +319,12 @@ const RightPanel: React.FC = () => {
             fixed left-0 z-[60] md:z-40
             bg-zinc-925 flex flex-col flex-shrink-0 
             transition-all duration-300 ease-in-out md:relative shadow-2xl md:shadow-none
+            md:translate-x-0 md:w-80 md:border-r md:border-zinc-800/60 md:inset-y-0 md:h-full
             ${isRightPanelOpen 
-                ? '-translate-x-0 ml-0 w-full md:w-80 border-r border-zinc-800/60' 
-                : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-r-0'}
-            md:inset-y-0 bottom-0 top-12 md:top-0 
-            h-[calc(100dvh-3rem)] md:h-full 
+                ? '-translate-x-0 ml-0 w-full border-r border-zinc-800/60' 
+                : '-translate-x-full'}
+            bottom-0 top-12 
+            h-[calc(100dvh-3rem)]
         `}
     >
         

@@ -39,11 +39,16 @@
             overflow: hidden; /* Prevent body scroll, handle specific scrolling in containers */
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        /* GLOBALLY HIDE SCROLLBARS */
+        /* Chrome, Safari, Opera */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        /* IE, Edge, Firefox */
+        html, body, div, section, main, aside, nav, ul, ol, li, textarea, pre {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
         
         /* Screenplay Formatting Classes - Adjusted for RTL */
         .sp-slug { font-weight: 600; text-transform: uppercase; margin-top: 2rem; margin-bottom: 0.5rem; color: #e4e4e7; text-align: right; }
@@ -57,10 +62,6 @@
         /* Ghost Text Animation */
         @keyframes ghost-pulse { 0% { opacity: 0.4; } 50% { opacity: 0.65; } 100% { opacity: 0.4; } }
         .ai-ghost { color: #818cf8; animation: ghost-pulse 2.5s infinite ease-in-out; }
-        
-        /* Utility */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 <script type="importmap">
 {

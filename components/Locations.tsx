@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Image } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -59,7 +60,7 @@ const Locations: React.FC = () => {
       {/* Modal */}
       {showModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl m-4">
                   <h3 className="text-lg font-medium text-zinc-100 mb-4">زیادکردنی شوێن</h3>
                   <form onSubmit={handleSubmit} className="space-y-4">
                       <div>

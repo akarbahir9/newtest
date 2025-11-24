@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   ChevronsUpDown, LayoutDashboard, Search, Inbox, Plus, 
@@ -44,10 +45,10 @@ const Sidebar: React.FC = () => {
             fixed inset-y-0 right-0 z-[70] h-full
             bg-zinc-925
             transition-all duration-300 ease-in-out flex-shrink-0
-            md:relative
+            md:relative md:translate-x-0 md:w-64 md:border-l md:border-zinc-800/60
             ${isSidebarOpen 
                 ? 'translate-x-0 w-64 border-l border-zinc-800/60' 
-                : 'translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-l-0'}
+                : 'translate-x-full'}
         `}
     >
       <div className={`flex flex-col h-full w-64 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
@@ -66,6 +67,7 @@ const Sidebar: React.FC = () => {
                 </div>
             </div>
             
+            {/* Dropdown Logic remains same */}
             {isDropdownOpen && (
                 <div className="absolute top-full right-0 w-full bg-zinc-900 border border-zinc-800 shadow-xl rounded-b-md py-1 z-50">
                     {projects.map(p => (

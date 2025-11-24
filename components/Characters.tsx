@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Edit2, Save, Trash2, Plus, ArrowRightLeft } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -140,14 +141,14 @@ const Characters: React.FC = () => {
       {/* CREATE Modal */}
       {showModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl m-4 max-h-[90vh] overflow-y-auto">
                   <h3 className="text-lg font-medium text-zinc-100 mb-4">زیادکردنی کاراکتەر</h3>
                   <form onSubmit={handleSubmit} className="space-y-4">
                       <div>
                           <label className="block text-xs text-zinc-500 mb-1">ناو</label>
                           <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" required />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div>
                             <label className="block text-xs text-zinc-500 mb-1">ڕۆڵ</label>
                             <select value={role} onChange={e => setRole(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none">
@@ -179,8 +180,8 @@ const Characters: React.FC = () => {
       {/* EDIT Modal */}
       {editingChar && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-                  <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] m-4">
+                  <div className="p-6 border-b border-zinc-800 flex justify-between items-center flex-shrink-0">
                     <h3 className="text-lg font-medium text-zinc-100">دەستکاری {editingChar.name}</h3>
                     <button onClick={() => setEditingChar(null)}><Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-500" /></button>
                   </div>
@@ -233,7 +234,7 @@ const Characters: React.FC = () => {
                            <div className="space-y-3">
                                {editingChar.relationships?.map((rel, i) => (
                                    <div key={i} className="flex flex-col sm:flex-row gap-2 items-start bg-zinc-900 p-2 rounded border border-zinc-800 relative">
-                                       <div className="flex-1 grid grid-cols-2 gap-2 w-full">
+                                       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
                                            <div>
                                                <label className="block text-[10px] text-zinc-600 mb-0.5">پەیوەندی لەگەڵ</label>
                                                <select 
@@ -255,7 +256,7 @@ const Characters: React.FC = () => {
                                                     className="w-full bg-zinc-800 text-xs text-zinc-300 rounded border border-zinc-700 p-1"
                                                />
                                            </div>
-                                           <div className="col-span-2">
+                                           <div className="col-span-1 sm:col-span-2">
                                                 <input 
                                                     value={rel.description || ''}
                                                     onChange={(e) => updateRelationship(i, 'description', e.target.value)}
@@ -274,7 +275,7 @@ const Characters: React.FC = () => {
                       </div>
                   </div>
 
-                  <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900 rounded-b-xl">
+                  <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900 rounded-b-xl flex-shrink-0">
                       <button onClick={() => setEditingChar(null)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
                       <button onClick={handleEditSave} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded flex items-center gap-2">
                           <Save className="w-3.5 h-3.5" /> پاشەکەوتکردن

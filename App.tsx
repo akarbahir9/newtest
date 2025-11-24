@@ -1,5 +1,6 @@
-import React from 'react';
-import { Menu, Sparkles } from 'lucide-react';
+
+import React, { useEffect } from 'react';
+import { Menu, Sparkles, PanelRight, PanelLeft } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import RightPanel from './components/RightPanel';
 import Editor from './components/Editor';
@@ -15,6 +16,27 @@ import { ProjectProvider, useProject } from './context/ProjectContext';
 
 const MainLayout: React.FC = () => {
   const { currentView, isSidebarOpen, setSidebarOpen, isRightPanelOpen, setRightPanelOpen } = useProject();
+
+  const isEditor = currentView === 'editor';
+
+  // Keyboard Shortcuts (Keep functional for mobile or if needed, though desktop UI is now static)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle Sidebar: Cmd/Ctrl + B
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setSidebarOpen(!isSidebarOpen);
+      }
+      // Toggle AI Panel: Cmd/Ctrl + I or Cmd/Ctrl + \
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'i' || e.key === '\\')) {
+        e.preventDefault();
+        setRightPanelOpen(!isRightPanelOpen);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSidebarOpen, setSidebarOpen, isRightPanelOpen, setRightPanelOpen]);
 
   const renderView = () => {
     switch (currentView) {
@@ -70,14 +92,16 @@ const MainLayout: React.FC = () => {
                 <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
             </div>
 
-            {/* Left Side: AI Toggle */}
-            <button 
-                onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
-                className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
-                title="Toggle AI Chat"
-            >
-                <Sparkles className="w-5 h-5" />
-            </button>
+            {/* Left Side: AI Toggle - Only visible in Editor */}
+            {isEditor && (
+                <button 
+                    onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
+                    className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
+                    title="Toggle AI Chat"
+                >
+                    <Sparkles className="w-5 h-5" />
+                </button>
+            )}
         </div>
 
         <main className="flex-1 bg-zinc-950 relative overflow-hidden flex flex-col">
@@ -85,8 +109,10 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
       
-      {/* AI Panel on Left (End in RTL) */}
-      <RightPanel />
+      {/* AI Panel on Left (End in RTL) - Hidden via CSS when not in editor */}
+      <div className={isEditor ? 'contents' : 'hidden'}>
+        <RightPanel />
+      </div>
     </div>
   );
 };
