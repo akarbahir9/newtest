@@ -17,7 +17,7 @@ const ConfirmationModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-25">
+    <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in-25">
       <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-sm shadow-2xl">
         <div className="flex flex-col items-center text-center mb-4">
           <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center mb-3">

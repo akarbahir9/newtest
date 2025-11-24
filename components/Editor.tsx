@@ -446,7 +446,7 @@ const Editor: React.FC = () => {
 
         const containerWidth = container.clientWidth;
         const targetPageWidth = 794; // 210mm approx 794px at 96 DPI
-        const padding = 24; // Less padding for mobile calculation
+        const padding = 0; // Removed extra padding to allow full width fit on mobile/tablet
 
         if (containerWidth < targetPageWidth + padding) {
             // Mobile/Tablet: Scale down to fit width precisely
@@ -880,25 +880,40 @@ const Editor: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto relative bg-zinc-950 scroll-smooth custom-scrollbar" id="editor-scroll">
-            {/* Removed py-6 and gap-6, added min-h-full to ensure bg color covers viewport */}
-            <div 
-                className="flex flex-col items-center py-4 gap-4 transition-transform duration-200 ease-in-out origin-top w-full min-h-full"
-                style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-            >
+            <div className="flex flex-col items-center w-full min-h-full" style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem', gap: `${16 * zoom}px` }}>
                 {pages.map((page, i) => (
-                    <Page 
+                    <div 
                         key={page.id} 
-                        id={page.id}
-                        index={i}
-                        initialContent={page.content}
-                        onUpdate={handlePageUpdate}
-                        onSplit={handlePageSplit}
-                        onUnderflow={handleUnderflow}
-                        focusRequest={focusTarget?.id === page.id ? focusTarget : null}
-                        isNovelMode={isNovelMode}
-                        projectMetadata={currentProject || {}}
-                        zoomLevel={zoom}
-                    />
+                        className="transition-all duration-200 ease-in-out"
+                        style={{ 
+                            width: `calc(210mm * ${zoom})`, 
+                            height: `calc(297mm * ${zoom})`,
+                            flexShrink: 0,
+                            position: 'relative'
+                        }}
+                    >
+                        <div style={{ 
+                            transform: `scale(${zoom})`, 
+                            transformOrigin: 'top left', 
+                            position: 'absolute', 
+                            top: 0, 
+                            left: 0,
+                            transition: 'transform 0.2s ease-in-out'
+                        }}>
+                             <Page 
+                                id={page.id}
+                                index={i}
+                                initialContent={page.content}
+                                onUpdate={handlePageUpdate}
+                                onSplit={handlePageSplit}
+                                onUnderflow={handleUnderflow}
+                                focusRequest={focusTarget?.id === page.id ? focusTarget : null}
+                                isNovelMode={isNovelMode}
+                                projectMetadata={currentProject || {}}
+                                zoomLevel={zoom}
+                             />
+                        </div>
+                    </div>
                 ))}
             </div>
         </div>
