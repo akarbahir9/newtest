@@ -412,8 +412,13 @@ const Editor: React.FC = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Zoom State
-  const [zoom, setZoom] = useState(1);
+  // Zoom State: Initialize based on device width (82 for desktop, 50 for mobile/tablet)
+  const [zoom, setZoom] = useState(() => {
+     if (typeof window !== 'undefined') {
+         return window.innerWidth < 1024 ? 0.50 : 0.82;
+     }
+     return 0.82;
+  });
 
   // Formatting State
   const [activeFormat, setActiveFormat] = useState('');
@@ -441,48 +446,28 @@ const Editor: React.FC = () => {
   const handleZoomIn = () => setZoom(prev => Math.min(Math.round((prev + 0.1) * 10) / 10, 1.5));
   const handleZoomOut = () => setZoom(prev => Math.max(Math.round((prev - 0.1) * 10) / 10, 0.3)); // Allow smaller zoom for mobile
   const handleZoomReset = () => {
-       // Trigger auto-calculation
-       window.dispatchEvent(new Event('resize'));
+       // Reset to defaults
+       const isMobile = window.innerWidth < 1024;
+       setZoom(isMobile ? 0.50 : 0.82);
   };
 
   useEffect(() => {
     const updateZoom = () => {
-        const container = document.getElementById('editor-scroll');
-        if (!container) return;
-
-        const containerWidth = container.clientWidth;
-        const targetPageWidth = 794; // 210mm approx 794px at 96 DPI
-        const padding = 0; // Removed extra padding to allow full width fit on mobile/tablet
-
-        if (containerWidth < targetPageWidth + padding) {
-            // Mobile/Tablet: Scale down to fit width precisely
-            const scale = (containerWidth - padding) / targetPageWidth;
-            setZoom(Math.max(scale, 0.3)); // Minimum scale 0.3
+        // Enforce the specific zoom levels requested based on breakpoint
+        const isMobile = window.innerWidth < 1024; // Covers Mobiles and iPads in Portrait
+        if (isMobile) {
+            setZoom(0.50);
         } else {
-            // Desktop
-            const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-            if (isDesktop && (isSidebarOpen || isRightPanelOpen)) {
-                 // Slight scale down if panels crowd the view
-                 const availableWidth = window.innerWidth - (isSidebarOpen ? 256 : 0) - (isRightPanelOpen ? 320 : 0);
-                 if (availableWidth < 900) {
-                     setZoom(0.85);
-                 } else {
-                     setZoom(1);
-                 }
-            } else {
-                setZoom(1);
-            }
+            setZoom(0.82);
         }
     };
     
     // Initial check
-    setTimeout(updateZoom, 100); // Small delay to ensure layout is ready
+    setTimeout(updateZoom, 100); 
 
-    // Listener for resize
     window.addEventListener('resize', updateZoom);
-    // Helper to trigger re-calc when sidebar/panel toggles, handled by dependency
     return () => window.removeEventListener('resize', updateZoom);
-  }, [isSidebarOpen, isRightPanelOpen]);
+  }, []); // Only run once on mount to set up listener, but strict dependency on nothing else to prevent override loops
 
   // Detect Active Format based on Selection
   useEffect(() => {

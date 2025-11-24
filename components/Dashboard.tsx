@@ -499,12 +499,12 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Create Modal */}
+      {/* Create Modal - Responsive Fix with dvh */}
       {showNewProjectModal && (
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[95vh] m-4">
-                  <h3 className="text-lg font-medium text-zinc-100 mb-4">دەستپێکردنی پڕۆژەی نوێ</h3>
-                  <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[calc(100dvh-2rem)] m-2 md:m-4 overflow-hidden">
+                  <h3 className="text-lg font-medium text-zinc-100 mb-4 flex-shrink-0">دەستپێکردنی پڕۆژەی نوێ</h3>
+                  <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-2">
                       {/* ... Form Content ... */}
                       <div className="space-y-3">
                           <label className="block text-xs text-zinc-500 font-semibold uppercase tracking-wider">جۆر هەڵبژێرە</label>
@@ -640,12 +640,11 @@ const Dashboard: React.FC = () => {
                               </div>
                           </div>
                       </div>
-
-                      <div className="flex gap-2 justify-end pt-2 border-t border-zinc-800">
-                          <button type="button" onClick={() => setShowNewProjectModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
-                          <button type="submit" className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">دروستکردن</button>
-                      </div>
                   </form>
+                  <div className="flex gap-2 justify-end pt-4 border-t border-zinc-800 flex-shrink-0">
+                      <button type="button" onClick={() => setShowNewProjectModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
+                      <button type="submit" onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">دروستکردن</button>
+                  </div>
               </div>
           </div>
       )}
