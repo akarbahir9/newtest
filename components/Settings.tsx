@@ -27,6 +27,8 @@ const Settings: React.FC = () => {
         totalSeasons?: number;
         episodesPerSeason?: number;
         episodeDuration?: number;
+        durationSeconds?: number;
+        platform?: string;
     }
   }>({
     title: '',
@@ -56,7 +58,7 @@ const Settings: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleMetadataChange = (field: string, value: number) => {
+  const handleMetadataChange = (field: string, value: any) => {
       setFormData(prev => ({
           ...prev,
           targetMetadata: { ...prev.targetMetadata, [field]: value }
@@ -124,6 +126,30 @@ const Settings: React.FC = () => {
                           onChange={(e) => handleMetadataChange('targetPageCount', parseInt(e.target.value))}
                           className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
                       />
+                  </div>
+              )}
+
+              {currentProject.type === 'Advertising' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-xs text-zinc-500 mb-1">ماوە (چیرکە)</label>
+                          <input 
+                              type="number"
+                              value={formData.targetMetadata.durationSeconds || 30}
+                              onChange={(e) => handleMetadataChange('durationSeconds', parseInt(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs text-zinc-500 mb-1">پلاتفۆرم</label>
+                          <input 
+                              type="text"
+                              value={formData.targetMetadata.platform || ''}
+                              onChange={(e) => handleMetadataChange('platform', e.target.value)}
+                              placeholder="نموونە: Instagram Reels, TV"
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                          />
+                      </div>
                   </div>
               )}
 

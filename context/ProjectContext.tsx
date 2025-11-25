@@ -318,6 +318,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       initialCharacters?: any[]
   ): Promise<string | null> => {
     try {
+        let defaultMetadata = {};
+        if (type === 'Screenplay') defaultMetadata = { durationMinutes: 110 };
+        else if (type === 'Novel') defaultMetadata = { targetPageCount: 300 };
+        else if (type === 'Serial') defaultMetadata = { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 };
+        else if (type === 'Advertising') defaultMetadata = { durationSeconds: 30, platform: 'General' };
+
         const payload: any = {
             title, type, format, genres,
             logline: metadata.logline,
@@ -326,7 +332,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             theme: metadata.theme,
             setting: metadata.setting,
             protagonist_goal: metadata.protagonistGoal,
-            target_metadata: metadata.targetMetadata || (type === 'Screenplay' ? { durationMinutes: 110 } : type === 'Novel' ? { targetPageCount: 300 } : { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 }),
+            target_metadata: metadata.targetMetadata || defaultMetadata,
             plan_chat_history: []
         };
         if (sourceStoryId) payload.source_story_id = sourceStoryId;

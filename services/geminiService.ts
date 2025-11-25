@@ -188,8 +188,8 @@ const finalizeStoryTool: FunctionDeclaration = {
         type: Type.OBJECT,
         properties: {
             title: { type: Type.STRING },
-            type: { type: Type.STRING, enum: ['Screenplay', 'Novel', 'Serial'] },
-            format: { type: Type.STRING, enum: ['Feature', 'Short', 'Episode', 'Standard'] },
+            type: { type: Type.STRING, enum: ['Screenplay', 'Novel', 'Serial', 'Advertising'] },
+            format: { type: Type.STRING, enum: ['Feature', 'Short', 'Episode', 'Standard', 'TV Commercial', 'Social Media', 'Radio Spot', 'Print'] },
             genres: { type: Type.ARRAY, items: { type: Type.STRING } },
             logline: { type: Type.STRING },
             detailedStory: { type: Type.STRING, description: "A comprehensive summary of the story generated from the conversation." },
@@ -204,7 +204,9 @@ const finalizeStoryTool: FunctionDeclaration = {
                     targetPageCount: { type: Type.NUMBER, description: "For Novels" },
                     totalSeasons: { type: Type.NUMBER, description: "For Serials/TV" },
                     episodesPerSeason: { type: Type.NUMBER, description: "For Serials/TV" },
-                    episodeDuration: { type: Type.NUMBER, description: "For Serials/TV (in minutes)" }
+                    episodeDuration: { type: Type.NUMBER, description: "For Serials/TV (in minutes)" },
+                    durationSeconds: { type: Type.NUMBER, description: "For Ads (in seconds)" },
+                    platform: { type: Type.STRING, description: "For Ads (e.g. Instagram, TV)" }
                 }
             },
             characters: { 
@@ -236,7 +238,7 @@ export const generateAssistantResponse = async (
     const model = 'gemini-2.5-flash';
     const safeContext = projectContext ? projectContext.slice(0, 100000) : '';
 
-    let systemInstruction = `You are Zoer, an advanced AI story assistant. You speak and write primarily in Kurdish (Sorani).
+    let systemInstruction = `You are Zoer, an advanced AI story assistant and Marketing Expert. You speak and write primarily in Kurdish (Sorani).
         
     CRITICAL FORMATTING RULES:
     1. When asked to write, rewrite, or generate scene content, you MUST enclose the actual screenplay text within <screenplay> and </screenplay> tags.
@@ -247,7 +249,6 @@ export const generateAssistantResponse = async (
        - <div class="sp-parenthetical">(wryly)</div>
        - <div class="sp-dialogue">Dialogue goes here.</div>
        - <div class="sp-transition">CUT TO:</div> (Use Kurdish Transition if appropriate, or English standard)
-    3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
     
     CAPABILITIES:
     - You can update project metadata (title, logline, detailed story, etc.).
@@ -262,6 +263,7 @@ export const generateAssistantResponse = async (
     
     A. PLANNING & CREATION:
     - Always check the "Plan/Blueprint" in the context. If the user asks to "populate characters" or "create characters from the plan", analyze the blueprint text and use 'bulk_create_characters' to add them all at once.
+    - If the project type is 'Advertising', act as a Copywriter and Sales Expert. Focus on Hook, USP, and CTA.
     
     B. DELETION (CRITICAL):
     - You have tools to delete items: 'delete_item' (single) and 'bulk_delete_items' (multiple).
@@ -341,9 +343,9 @@ export const generateStoryBuilderChat = async (
     finalData?: any 
 }> => {
     try {
-        const systemInstruction = `You are Zoer's Creative Consultant. You speak in Kurdish (Sorani).
+        const systemInstruction = `You are Zoer's Creative Consultant and Marketing Strategist. You speak in Kurdish (Sorani).
         
-        GOAL: Interview the user to build a complete concept for a new Story (Screenplay, Novel, or Series).
+        GOAL: Interview the user to build a complete concept for a new Story (Screenplay, Novel, Series, or Advertisement).
         
         PROCESS:
         1. Ask questions one by one. Do not overwhelm the user.
@@ -353,7 +355,14 @@ export const generateStoryBuilderChat = async (
            - If the user chooses 'Serial' (Series), you MUST ask about: Number of Seasons, Episodes per Season, and Episode Duration. Give options (e.g., "8 Episodes", "10 Episodes", "22 Episodes").
            - If the user chooses 'Screenplay' (Movie), you MUST ask about the approximate duration (e.g., "90 mins", "110 mins", "120 mins").
            - If the user chooses 'Novel', you MUST ask about the target page count.
-        5. Once you have enough info (Title, Type, Logline, Structure/Metadata, characters, setting), call the 'finalize_story_concept' tool.
+           - If the user chooses 'Advertising', you MUST act as a Sales Expert. Ask about:
+             a. Product/Service Name & Category.
+             b. Target Audience (Demographics/Psychographics).
+             c. Unique Selling Proposition (USP) / Key Benefit.
+             d. Platform (TV, Instagram, YouTube, Radio).
+             e. Call to Action (CTA).
+             f. Duration (e.g., 15s, 30s, 60s).
+        5. Once you have enough info, call the 'finalize_story_concept' tool.
         
         OUTPUT FORMAT (STRICT JSON):
         Unless calling a tool, you MUST output a JSON object with this structure:
@@ -376,7 +385,7 @@ export const generateStoryBuilderChat = async (
            "multiSelect": false
         }
         
-        TONE: Enthusiastic, creative, helpful, professional.
+        TONE: Enthusiastic, creative, professional, and strategic (if Advertising).
         `;
 
         const chat = ai.chats.create({
@@ -399,7 +408,7 @@ export const generateStoryBuilderChat = async (
             for (const part of candidate.content.parts) {
                 if (part.functionCall && part.functionCall.name === 'finalize_story_concept') {
                     finalData = part.functionCall.args;
-                    responseJson = { message: "زانیارییەکانم وەرگرت. چیرۆکەکەت ئامادە دەکرێت..." };
+                    responseJson = { message: "زانیارییەکانم وەرگرت. پڕۆژەکەت ئامادە دەکرێت..." };
                 } else if (part.text) {
                     try {
                         let text = part.text.trim();
@@ -554,9 +563,14 @@ export const generateAutocomplete = async (
     const prompt = `You are a creative writing assistant for Kurdish (Sorani).
     TASK: Continue the story text naturally.
     CONTEXT:
+    Type: ${context.type}
     Genre: ${context.genre}
     Style: ${context.style}
     Current Scene Goal: ${context.goal || 'Advance the plot'}
+    
+    IF ADVERTISING: Focus on persuasive, punchy copy, visual cues, and strong calls to action.
+    IF NARRATIVE: Focus on story flow, dialogue, and action.
+
     INPUT TEXT (End of current scene):
     "${textSlice}"
     INSTRUCTIONS:
@@ -633,6 +647,7 @@ export const generateStoryPlanChat = async (
         
         PROJECT DATA (READ DEEPLY):
         Title: ${projectContext.title}
+        Type: ${projectContext.type}
         Logline: ${projectContext.logline}
         Theme: ${projectContext.theme}
         Protagonist Goal: ${projectContext.protagonistGoal}
@@ -651,7 +666,11 @@ export const generateStoryPlanChat = async (
         4. **STRUCTURE:** 
            - Use standard structures (Save the Cat, Hero's Journey) but adapt them creatively.
            - Break down into Acts -> Sequences -> Scenes.
-        5. **FORMATTING:** Use robust Markdown.
+        5. **IF ADVERTISING:**
+           - Create a Shot List or Storyboard breakdown.
+           - Focus on the Visual Hook, The Problem, The Solution (Product), and The CTA.
+           - Use concise headers like "Scene 1: The Struggle", "Scene 2: The Product Reveal".
+        6. **FORMATTING:** Use robust Markdown.
            - # Act I
            - ## Sequence A: The Status Quo
            - ### Scene 1: [Name]
