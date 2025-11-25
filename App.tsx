@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Menu, Sparkles, PanelRight, PanelLeft } from 'lucide-react';
+import { Menu, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import RightPanel from './components/RightPanel';
 import Editor from './components/Editor';
@@ -11,6 +11,7 @@ import Search from './components/Search';
 import Settings from './components/Settings';
 import Inbox from './components/Inbox';
 import Outline from './components/Outline';
+import StoryBuilder from './components/StoryBuilder';
 import ConfirmationModal from './components/ConfirmationModal';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
@@ -18,8 +19,9 @@ const MainLayout: React.FC = () => {
   const { currentView, isSidebarOpen, setSidebarOpen, isRightPanelOpen, setRightPanelOpen } = useProject();
 
   const isEditor = currentView === 'editor';
+  const isStoryBuilder = currentView === 'story-builder';
 
-  // Keyboard Shortcuts (Keep functional for mobile or if needed, though desktop UI is now static)
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Toggle Sidebar: Cmd/Ctrl + B
@@ -56,6 +58,8 @@ const MainLayout: React.FC = () => {
         return <Inbox />;
       case 'outline':
         return <Outline />;
+      case 'story-builder':
+        return <StoryBuilder />;
       default:
         return <Editor />;
     }
@@ -74,42 +78,50 @@ const MainLayout: React.FC = () => {
         />
       )}
       
-      {/* Sidebar on Right (Start in RTL) */}
-      <Sidebar />
+      {/* Sidebar - Hidden in Story Builder */}
+      {!isStoryBuilder && <Sidebar />}
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full transition-all group/main">
         
-        {/* Mobile Header */}
-        <div className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 relative z-30">
-            {/* Right Side: Menu & Brand */}
-            <div className="flex items-center gap-3">
-                <button 
-                    onClick={() => setSidebarOpen(true)} 
-                    className="text-zinc-400 hover:text-white"
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
-                <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
-            </div>
+        {/* Mobile Header - Hidden in Story Builder */}
+        {!isStoryBuilder && (
+            <div 
+                className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 relative z-30"
+                style={{ 
+                    height: 'calc(3rem + env(safe-area-inset-top))', 
+                    paddingTop: 'env(safe-area-inset-top)' 
+                }}
+            >
+                {/* Right Side: Menu & Brand */}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setSidebarOpen(true)} 
+                        className="text-zinc-400 hover:text-white"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
+                </div>
 
-            {/* Left Side: AI Toggle - Only visible in Editor */}
-            {isEditor && (
-                <button 
-                    onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
-                    className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
-                    title="Toggle AI Chat"
-                >
-                    <Sparkles className="w-5 h-5" />
-                </button>
-            )}
-        </div>
+                {/* Left Side: AI Toggle - Only visible in Editor */}
+                {isEditor && (
+                    <button 
+                        onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
+                        className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
+                        title="Toggle AI Chat"
+                    >
+                        <Sparkles className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+        )}
 
         <main className="flex-1 bg-zinc-950 relative overflow-hidden flex flex-col">
             {renderView()}
         </main>
       </div>
       
-      {/* AI Panel on Left (End in RTL) - Hidden via CSS when not in editor */}
+      {/* AI Panel - Hidden unless in Editor */}
       <div className={isEditor ? 'contents' : 'hidden'}>
         <RightPanel />
       </div>

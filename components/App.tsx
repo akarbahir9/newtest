@@ -11,6 +11,7 @@ import Search from './components/Search';
 import Settings from './components/Settings';
 import Inbox from './components/Inbox';
 import Outline from './components/Outline';
+import StoryBuilder from './components/StoryBuilder';
 import ConfirmationModal from './components/ConfirmationModal';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
@@ -56,6 +57,8 @@ const MainLayout: React.FC = () => {
         return <Inbox />;
       case 'outline':
         return <Outline />;
+      case 'story-builder':
+        return <StoryBuilder />;
       default:
         return <Editor />;
     }
@@ -74,43 +77,45 @@ const MainLayout: React.FC = () => {
         />
       )}
       
-      {/* Sidebar on Right (Start in RTL) */}
-      <Sidebar />
+      {/* Sidebar on Right (Start in RTL) - Hide in Story Builder */}
+      {currentView !== 'story-builder' && <Sidebar />}
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full transition-all group/main">
         
-        {/* Mobile Header */}
-        <div 
-            className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 bg-zinc-950 relative z-30"
-            style={{ 
-                height: 'calc(3rem + env(safe-area-inset-top))', 
-                paddingTop: 'env(safe-area-inset-top)' 
-            }}
-        >
-            <div className="h-full flex items-center justify-between px-4">
-                {/* Right Side: Menu & Brand */}
-                <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => setSidebarOpen(true)} 
-                        className="text-zinc-400 hover:text-white"
-                    >
-                        <Menu className="w-5 h-5" />
-                    </button>
-                    <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
-                </div>
+        {/* Mobile Header - Hide in Story Builder */}
+        {currentView !== 'story-builder' && (
+            <div 
+                className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 bg-zinc-950 relative z-30"
+                style={{ 
+                    height: 'calc(3rem + env(safe-area-inset-top))', 
+                    paddingTop: 'env(safe-area-inset-top)' 
+                }}
+            >
+                <div className="h-full flex items-center justify-between px-4">
+                    {/* Right Side: Menu & Brand */}
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setSidebarOpen(true)} 
+                            className="text-zinc-400 hover:text-white"
+                        >
+                            <Menu className="w-5 h-5" />
+                        </button>
+                        <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
+                    </div>
 
-                {/* Left Side: AI Toggle - Only visible in Editor */}
-                {isEditor && (
-                    <button 
-                        onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
-                        className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
-                        title="Toggle AI Chat"
-                    >
-                        <Sparkles className="w-5 h-5" />
-                    </button>
-                )}
+                    {/* Left Side: AI Toggle - Only visible in Editor */}
+                    {isEditor && (
+                        <button 
+                            onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
+                            className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
+                            title="Toggle AI Chat"
+                        >
+                            <Sparkles className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
             </div>
-        </div>
+        )}
 
         <main className="flex-1 bg-zinc-950 relative overflow-hidden flex flex-col">
             {renderView()}

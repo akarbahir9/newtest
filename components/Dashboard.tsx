@@ -1,78 +1,57 @@
-import React, { useState, useRef } from 'react';
-import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown, WifiOff, Database } from 'lucide-react';
-import { useProject } from '../context/ProjectContext';
-import { Project, ProjectType, ProjectFormat } from '../types';
-import { PDFDocument, rgb } from 'pdf-lib';
-import html2canvas from 'html2canvas';
 
-const GENRES = [
-    "ئەکشن", "سەرکێشی", "ئەنیمەیشن", "ژیاننامە", "کۆمێدی", "تاوان", "سایبەرپانک", 
-    "کارەسات", "بەڵگەنامەیی", "دراما", "خێزانی", "فەنتازیا", "فیلم نۆیر", "مێژوویی", 
-    "ترسناک", "مۆسیقا", "موزیکاڵ", "میدتێری", "دەروونی", "ڕۆمانسی", "خەیاڵی زانستی", 
-    "کورتە", "سلاشەر", "وەرزشی", "سیخوڕی", "ستیمپانک", "سوپەرهیرۆ", "هەستبزوێن", "جەنگ", "وێستێرن"
-];
+import React, { useState, useRef, useEffect } from 'react';
+import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown, WifiOff, Database, MessageSquare, Sparkles, Send, Play, Edit2 } from 'lucide-react';
+import { useProject } from '../context/ProjectContext';
+import { Project, ProjectType, ProjectFormat, Story, ChatMessage } from '../types';
+import { PDFDocument, rgb } from 'pdf-lib';
+import * as fontkitProxy from '@pdf-lib/fontkit';
+import * as ArabicReshaperProxy from 'arabic-persian-reshaper';
+
+// Reliable CDN for Noto Sans Arabic (TTF format is more stable with pdf-lib than WOFF)
+const FONT_URL = 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf';
 
 const Dashboard: React.FC = () => {
-  const { projects, navigateTo, setCurrentProject, addProject, deleteProject, importProject, isOffline } = useProject();
-  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const { projects, stories, navigateTo, setCurrentProject, deleteProject, importProject, isOffline, addStory, deleteStory, createProjectFromStory, setCurrentStoryId } = useProject();
   
+  // Tabs: 'projects' or 'stories'
+  const [activeTab, setActiveTab] = useState<'projects' | 'stories'>('projects');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
+  const [storyToConvert, setStoryToConvert] = useState<Story | null>(null);
+
   // File Input Ref for Import
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form State
-  const [newTitle, setNewTitle] = useState('');
-  const [projectType, setProjectType] = useState<ProjectType>('Screenplay');
-  const [projectFormat, setProjectFormat] = useState<ProjectFormat>('Feature');
-  const [newGenres, setNewGenres] = useState<string[]>(['خەیاڵی زانستی']);
-  const [newLogline, setNewLogline] = useState('');
-  const [newDetailedStory, setNewDetailedStory] = useState('');
-  const [newTheme, setNewTheme] = useState('');
-  const [newSetting, setNewSetting] = useState('');
-  const [newGoal, setNewGoal] = useState('');
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newGenres.length === 0) {
-        alert("تکایە لانی کەم ژانرێک دیاری بکە.");
-        return;
-    }
-    
-    addProject(newTitle, projectType, projectFormat, newGenres, {
-        logline: newLogline,
-        detailedStory: newDetailedStory,
-        theme: newTheme,
-        setting: newSetting,
-        protagonistGoal: newGoal
-    });
-    
-    setShowNewProjectModal(false);
-    // Reset
-    setNewTitle('');
-    setProjectType('Screenplay');
-    setProjectFormat('Feature');
-    setNewGenres(['خەیاڵی زانستی']);
-    setNewLogline('');
-    setNewDetailedStory('');
-    setNewTheme('');
-    setNewSetting('');
-    setNewGoal('');
+  const handleCreateProjectFromStory = async (story: Story) => {
+      await createProjectFromStory(story);
+      setActiveTab('projects');
   };
 
-  const toggleGenre = (genre: string) => {
-      if (newGenres.includes(genre)) {
-          setNewGenres(newGenres.filter(g => g !== genre));
-      } else {
-          if (newGenres.length >= 5) return; // Max 5 limit
-          setNewGenres([...newGenres, genre]);
-      }
-  };
-
-  const confirmDelete = () => {
+  const confirmDeleteProject = () => {
       if (projectToDelete) {
           deleteProject(projectToDelete.id);
           setProjectToDelete(null);
       }
+  };
+
+  const confirmDeleteStory = () => {
+      if (storyToDelete) {
+          deleteStory(storyToDelete.id);
+          setStoryToDelete(null);
+      }
+  };
+
+  const handleCreateNewStory = () => {
+      setCurrentStoryId(null);
+      navigateTo('story-builder');
+  };
+
+  const handleEditStory = (e: React.MouseEvent, storyId: string) => {
+      e.stopPropagation();
+      setCurrentStoryId(storyId);
+      navigateTo('story-builder');
   };
   
   // Export Handler (JSON)
@@ -82,274 +61,401 @@ const Dashboard: React.FC = () => {
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
       downloadAnchorNode.setAttribute("download", `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_backup.json`);
-      document.body.appendChild(downloadAnchorNode); // required for firefox
+      document.body.appendChild(downloadAnchorNode); 
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
   };
 
-  // Export Handler (PDF) with Robust Page Breaking and Unicode Support
+  // --- ARABIC TEXT SHAPING HELPER ---
+  const formatTextForPDF = (text: string): string => {
+      if (!text) return "";
+      
+      // Robust resolution for ArabicReshaper class/constructor
+      let ReshaperClass: any = ArabicReshaperProxy;
+      
+      // Check default export
+      if (ReshaperClass.default) {
+          ReshaperClass = ReshaperClass.default;
+      }
+      // Check named export if nested
+      if (ReshaperClass.ArabicReshaper) {
+          ReshaperClass = ReshaperClass.ArabicReshaper;
+      }
+
+      // If we still don't have a function, try to find it on the proxy object itself
+      if (typeof ReshaperClass !== 'function') {
+           // Fallback: If it's an object, look for keys that might be the class
+           if ((ArabicReshaperProxy as any).ArabicReshaper) {
+               ReshaperClass = (ArabicReshaperProxy as any).ArabicReshaper;
+           }
+      }
+
+      if (typeof ReshaperClass !== 'function') {
+          console.warn("ArabicReshaper library not loaded correctly. Text shaping may fail.");
+          return text; // Fallback to raw text
+      }
+
+      try {
+          const reshaper = new ReshaperClass({
+              GoogleNotCompatability: false,
+              WorkaroundForLetters: false
+          });
+
+          // 1. Reshape Arabic Characters (Connect letters)
+          const connected = reshaper.convertArabic(text);
+
+          // 2. Simple BiDi Reordering for PDF LTR Drawing
+          // We assume the text is primarily RTL (Kurdish).
+          // Strategy: Split by space, reverse word order.
+          // For each word: if it has Arabic chars, reverse the characters.
+          
+          const words = connected.split(' ');
+          const reversedWords = words.reverse();
+          
+          const finalWords = reversedWords.map((word: string) => {
+              // Check if word has Arabic characters (range 0600–06FF)
+              if (/[\u0600-\u06FF]/.test(word)) {
+                  return word.split('').reverse().join('');
+              }
+              // Preserve English/Numbers direction
+              return word;
+          });
+
+          return finalWords.join(' ');
+      } catch (e) {
+          console.error("Error reshaping text:", e);
+          return text;
+      }
+  };
+
+  // --- ADVANCED PDF EXPORT ---
   const handleExportPDF = async (e: React.MouseEvent, project: Project) => {
       e.stopPropagation();
-      document.body.style.cursor = 'wait';
-      
+      setIsExporting(true);
+
       try {
         const pdfDoc = await PDFDocument.create();
         
-        // A4 Dimensions (Points)
-        const pdfWidth = 595.28; 
-        const pdfHeight = 841.89;
+        // Handle fontkit import robustly (ESM vs Default export)
+        const fontkit = (fontkitProxy as any).default || fontkitProxy;
+        pdfDoc.registerFontkit(fontkit);
         
-        // HTML rendering dimensions (Pixels at approx 96 DPI)
-        // We use a fixed width container for consistent rendering
-        const pixelWidth = 794; 
-        const pixelHeight = 1123; 
-        const margin = 96; // 1 inch approx (96px)
+        // Fetch and embed Kurdish-compatible font
+        let customFont: any;
+        try {
+            const fontBytes = await fetch(FONT_URL).then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch font: ${res.status} ${res.statusText}`);
+                return res.arrayBuffer();
+            });
+            customFont = await pdfDoc.embedFont(fontBytes);
+        } catch (fontError) {
+            console.error("Font loading error:", fontError);
+            alert("کێشە لە دابەزاندنی فۆنتی کوردی. تکایە دڵنیابەرەوە کە ئینتەرنێتەکەت باشە.");
+            setIsExporting(false);
+            return; // STOP EXECUTION. Do not fallback to standard fonts as they crash on Arabic/Kurdish.
+        }
         
-        const css = `
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;700&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+        const fontSize = 12;
+        const lineHeight = 16;
+        const margin = 50;
+        const width = 595.28; // A4 Width
+        const height = 841.89; // A4 Height
+        const contentWidth = width - (margin * 2);
 
-            .pdf-export-wrapper {
-                font-family: 'Noto Kufi Arabic', monospace;
-                color: #000000;
-                background: #ffffff;
-                width: ${pixelWidth}px;
-                position: absolute;
-                top: 0;
-                right: -9999px; /* Moved offscreen to right */
-                z-index: 10000;
-                direction: rtl; /* Force RTL for PDF capture */
-            }
-            .pdf-page {
-                width: ${pixelWidth}px;
-                height: ${pixelHeight}px;
-                padding: ${margin}px;
-                box-sizing: border-box;
-                background: #ffffff;
-                position: relative;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden; 
-            }
-            .pdf-page * {
-                color: #000000 !important;
-                background: transparent !important;
-                border-color: #000000 !important;
-                text-shadow: none !important;
-                box-shadow: none !important;
-            }
+        // Helper: Word Wrap using original text for width calculation
+        // but returning reshaped text for drawing?
+        // Note: Reshaped chars usually have same width as isolated in many fonts, but strictly speaking 
+        // we should measure the reshaped string.
+        const wrapAndFormat = (text: string, maxWidth: number) => {
+            if (!text) return [];
             
-            /* Screenplay Formatting Overrides for Black Text and RTL */
-            .sp-slug { 
-                font-weight: bold; 
-                text-transform: none !important; 
-                margin-top: 24px; 
-                margin-bottom: 8px; 
-                font-size: 14px; 
-                line-height: 1.2; 
-                text-align: right; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .sp-action { 
-                margin-bottom: 12px; 
-                line-height: 1.2; 
-                font-size: 14px; 
-                text-align: right; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .sp-character { 
-                text-align: center; 
-                width: 60%;
-                margin: 18px auto 0 auto;
-                padding: 0;
-                font-weight: bold; 
-                font-size: 14px; 
-                line-height: 1.2; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .sp-dialogue { 
-                text-align: center; 
-                width: 70%;
-                margin: 0 auto 12px auto;
-                padding: 0;
-                line-height: 1.2; 
-                font-size: 14px; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .sp-parenthetical { 
-                text-align: center; 
-                width: 50%;
-                margin: 0 auto;
-                padding: 0;
-                font-size: 12px; 
-                margin-bottom: 0; 
-                line-height: 1.2; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .sp-transition { 
-                text-align: left; /* Left for End in RTL */
-                text-transform: none !important; 
-                margin-top: 18px; 
-                margin-bottom: 18px; 
-                font-size: 14px; 
-                line-height: 1.2; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            .novel-chapter { 
-                font-size: 24px; 
-                font-weight: bold; 
-                text-align: center; 
-                margin-bottom: 30px; 
-                margin-top: 40px; 
-                page-break-before: always; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
-            p { 
-                margin-bottom: 12px; 
-                line-height: 1.5; 
-                text-indent: 24px; 
-                font-size: 14px; 
-                color: #000000 !important;
-                letter-spacing: normal !important;
-            }
+            // Step 1: Reshape first so width calculation is accurate
+            // (Connected glyphs might be slightly different width than isolated)
+            const shapedText = formatTextForPDF(text);
             
-            .title-page-content {
-                text-align: center;
-                margin-top: 250px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                color: #000000 !important;
-            }
-        `;
+            // Note: Our formatTextForPDF reverses the string for drawing.
+            // PDF's measureText might get confused if we pass reversed string?
+            // Actually, width of "C B A" is same as "A B C".
+            
+            const words = shapedText.split(' ');
+            // Since shapedText is already reversed (Words reversed, Chars reversed),
+            // The first word in 'words' is visually the RIGHT-most word in the original string.
+            // But we draw LTR. So we draw the first word first (at left).
+            // This is correct for our hack.
+            
+            const lines = [];
+            let currentLine = words[0];
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'pdf-export-wrapper';
-        wrapper.setAttribute('dir', 'rtl');
-        const styleTag = document.createElement('style');
-        styleTag.innerHTML = css;
-        wrapper.appendChild(styleTag);
-        document.body.appendChild(wrapper);
-
-        const addPageToPDF = async (element: HTMLElement, pageNum?: number) => {
-            const canvas = await html2canvas(element, {
-                scale: 2, 
-                logging: false,
-                useCORS: true,
-                windowWidth: pixelWidth,
-                height: pixelHeight,
-                backgroundColor: '#ffffff',
-                onclone: (clonedDoc) => {
-                    const all = clonedDoc.querySelectorAll('*');
-                    all.forEach((el: any) => {
-                         if (el.style) {
-                             el.style.color = '#000000';
-                             el.style.borderColor = '#000000';
-                             // Ensure letter spacing is reset for all elements in the clone
-                             el.style.letterSpacing = 'normal';
-                         }
-                    });
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = customFont.widthOfTextAtSize(currentLine + " " + word, fontSize);
+                if (width < maxWidth) {
+                    currentLine += " " + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
                 }
-            });
-            
-            const imgData = canvas.toDataURL('image/png');
-            const img = await pdfDoc.embedPng(imgData);
-            const page = pdfDoc.addPage([pdfWidth, pdfHeight]);
-            
-            page.drawImage(img, {
-                x: 0,
-                y: 0,
-                width: pdfWidth,
-                height: pdfHeight
-            });
+            }
+            lines.push(currentLine);
+            return lines;
+        };
 
-            if (pageNum !== undefined) {
-                 // In RTL, page number usually bottom left or center
-                 page.drawText(`${pageNum}.`, {
-                     x: 50, // Left side
-                     y: 30,
-                     size: 10,
-                     color: rgb(0, 0, 0)
-                 });
+        // Helper: Add Page & Reset Cursor
+        let page = pdfDoc.addPage([width, height]);
+        let y = height - margin;
+
+        const checkPageBreak = (neededSpace: number) => {
+            if (y - neededSpace < margin) {
+                page = pdfDoc.addPage([width, height]);
+                y = height - margin;
             }
         };
 
-        // --- Title Page ---
-        const titlePage = document.createElement('div');
-        titlePage.className = 'pdf-page';
-        titlePage.innerHTML = `
-            <div class="title-page-content">
-                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 10px; text-transform: none; letter-spacing: normal;">${project.title}</h1>
-                <p style="font-size: 14px; margin-bottom: 40px; color: #000;">فۆرماتی ${project.type}</p>
-                <div style="height: 40px;"></div>
-                <p style="font-size: 12px; color: #333;">نووسراوە لەلایەن</p>
-                <p style="font-size: 16px; font-weight: bold; margin-bottom: 20px;">نووسەر</p>
-                ${project.logline ? `<p style="font-size: 12px; font-style: italic; max-width: 400px; color: #444; margin-top: 40px;">${project.logline}</p>` : ''}
-            </div>
-        `;
-        wrapper.appendChild(titlePage);
+        // --- 1. COVER PAGE ---
+        const titleSize = 24;
+        const shapedTitle = formatTextForPDF(project.title);
+        const titleWidth = customFont.widthOfTextAtSize(shapedTitle, titleSize);
+        page.drawText(shapedTitle, {
+            x: (width - titleWidth) / 2,
+            y: height / 2 + 50,
+            size: titleSize,
+            font: customFont,
+            color: rgb(0, 0, 0),
+        });
+
+        const subtitle = formatTextForPDF(`${project.type} | ${project.genres.join(', ')}`);
+        const subWidth = customFont.widthOfTextAtSize(subtitle, 10);
+        page.drawText(subtitle, {
+            x: (width - subWidth) / 2,
+            y: height / 2 + 20,
+            size: 10,
+            font: customFont,
+            color: rgb(0.5, 0.5, 0.5),
+        });
         
-        await document.fonts.ready;
-        // Increased timeout to ensure fonts and layout settle for RTL
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (project.logline) {
+             const logLines = wrapAndFormat(project.logline, 400);
+             let logY = height / 2 - 20;
+             logLines.forEach(line => {
+                 const lw = customFont.widthOfTextAtSize(line, 12);
+                 page.drawText(line, {
+                     x: (width - lw) / 2,
+                     y: logY,
+                     size: 12,
+                     font: customFont,
+                     color: rgb(0.2, 0.2, 0.2)
+                 });
+                 logY -= 18;
+             });
+        }
 
-        await addPageToPDF(titlePage); 
-        wrapper.removeChild(titlePage);
-
-        // --- Content Pages ---
-        const sourceDiv = document.createElement('div');
-        const fullContent = [...project.scenes].sort((a,b) => a.number - b.number).map(s => s.content).join("");
-        sourceDiv.innerHTML = fullContent;
-        const children = Array.from(sourceDiv.childNodes);
-
-        let currentPage = document.createElement('div');
-        currentPage.className = 'pdf-page';
-        wrapper.appendChild(currentPage);
-        
-        let pageNumber = 1;
-
-        for (const child of children) {
-            if (child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()) continue;
-
-            const clone = child.cloneNode(true) as HTMLElement;
-            currentPage.appendChild(clone);
+        // --- 2. DETAILED STORY ---
+        if (project.detailedStory) {
+            page = pdfDoc.addPage([width, height]);
+            y = height - margin;
             
-            if (currentPage.scrollHeight > pixelHeight) {
-                currentPage.removeChild(clone);
-                await addPageToPDF(currentPage, pageNumber++);
-                wrapper.removeChild(currentPage);
-                currentPage = document.createElement('div');
-                currentPage.className = 'pdf-page';
-                wrapper.appendChild(currentPage);
-                currentPage.appendChild(clone);
-            }
-        }
-        
-        if (currentPage.childNodes.length > 0) {
-            await addPageToPDF(currentPage, pageNumber);
+            page.drawText("Detailed Story", { x: margin, y, size: 18, font: customFont, color: rgb(0.2, 0.2, 0.2) });
+            y -= 30;
+
+            const storyLines = project.detailedStory.split('\n');
+            storyLines.forEach(para => {
+                const lines = wrapAndFormat(para, contentWidth);
+                lines.forEach(line => {
+                    checkPageBreak(16);
+                    // Right Align Attempt: For proper RTL feel, we align text to Right.
+                    // Since our string is reversed ("3 2 1"), drawing it at X aligns '3' at X.
+                    // If we want '1' (start of sentence) to be at the Right Margin,
+                    // we need to calculate where to start drawing.
+                    // In our reversed logic, the first char drawn is the "Right most" char.
+                    // So we align to the Right Margin.
+                    
+                    const tw = customFont.widthOfTextAtSize(line, 12);
+                    page.drawText(line, { x: width - margin - tw, y, size: 12, font: customFont });
+                    y -= 16;
+                });
+                y -= 10; // Para spacing
+            });
         }
 
-        document.body.removeChild(wrapper);
+        // --- 3. BLUEPRINT PLAN (STYLED) ---
+        if (project.blueprint) {
+            page = pdfDoc.addPage([width, height]);
+            y = height - margin;
+            
+            page.drawText("Blueprint & Structure", { x: margin, y, size: 18, font: customFont, color: rgb(0.3, 0.3, 0.9) });
+            y -= 40;
+
+            const lines = project.blueprint.split('\n');
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+
+                // Style: ACT (#)
+                if (line.startsWith('# ')) {
+                    const text = formatTextForPDF(line.replace('# ', ''));
+                    checkPageBreak(60);
+                    y -= 20;
+                    
+                    // Draw Box
+                    page.drawRectangle({
+                        x: margin, y: y - 10, width: contentWidth, height: 40,
+                        color: rgb(0.1, 0.1, 0.1),
+                    });
+                    
+                    const tw = customFont.widthOfTextAtSize(text, 16);
+                    page.drawText(text, {
+                        x: (width - tw) / 2,
+                        y: y + 5,
+                        size: 16,
+                        font: customFont,
+                        color: rgb(1, 1, 1)
+                    });
+                    y -= 40;
+                }
+                // Style: SEQUENCE / EPISODE (##)
+                else if (line.startsWith('## ')) {
+                    const originalText = line.replace('## ', '');
+                    const text = formatTextForPDF(originalText);
+                    checkPageBreak(40);
+                    y -= 15;
+                    
+                    // Purple Box for Episodes
+                    if (originalText.toLowerCase().includes('episode') || originalText.includes('ئەڵقە')) {
+                        page.drawRectangle({
+                            x: margin, y: y - 5, width: contentWidth, height: 30,
+                            color: rgb(0.4, 0.1, 0.5), // Purple
+                        });
+                        const tw = customFont.widthOfTextAtSize(text, 14);
+                        page.drawText(text, { x: width - margin - tw - 10, y: y + 5, size: 14, font: customFont, color: rgb(1, 1, 1) });
+                    } else {
+                        // Emerald/Dark for Sequences
+                        const tw = customFont.widthOfTextAtSize(text, 14);
+                        page.drawText(text, { x: width - margin - tw, y, size: 14, font: customFont, color: rgb(0.2, 0.6, 0.4) });
+                        page.drawLine({ start: { x: margin, y: y-2 }, end: { x: width-margin, y: y-2 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+                    }
+                    y -= 25;
+                }
+                // Style: SCENE (###)
+                else if (line.startsWith('### ')) {
+                    const text = formatTextForPDF(line.replace('### ', ''));
+                    checkPageBreak(20);
+                    const tw = customFont.widthOfTextAtSize(text, 12);
+                    // Bullet point style
+                    page.drawCircle({ x: width - margin - 5, y: y + 4, size: 3, color: rgb(0.4, 0.4, 1) });
+                    page.drawText(text, { x: width - margin - tw - 15, y, size: 12, font: customFont, color: rgb(0.2, 0.2, 0.2) });
+                    y -= 18;
+                }
+                // Standard Text
+                else {
+                    const wrapped = wrapAndFormat(trimmed, contentWidth - 20);
+                    wrapped.forEach(l => {
+                        checkPageBreak(14);
+                        const tw = customFont.widthOfTextAtSize(l, 11);
+                        page.drawText(l, { x: width - margin - tw, y, size: 11, font: customFont, color: rgb(0.3, 0.3, 0.3) });
+                        y -= 14;
+                    });
+                }
+            });
+        }
+
+        // --- 4. SCRIPT / SCENES ---
+        if (project.scenes.length > 0) {
+            page = pdfDoc.addPage([width, height]);
+            y = height - margin;
+            
+            page.drawText("Script", { x: margin, y, size: 18, font: customFont, color: rgb(0, 0, 0) });
+            y -= 40;
+
+            // Sort scenes
+            const sortedScenes = [...project.scenes].sort((a,b) => a.number - b.number);
+
+            sortedScenes.forEach(scene => {
+                checkPageBreak(60); // Ensure header fits
+                
+                // Scene Header (Slugline) style
+                page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.9, 0.9, 0.9) });
+                const headerText = formatTextForPDF(`${scene.number}. ${scene.title.toUpperCase()}`);
+                
+                // Align Slugline Right (Standard for Kurdish)
+                const htW = customFont.widthOfTextAtSize(headerText, 12);
+                page.drawText(headerText, { x: width - margin - htW - 5, y, size: 12, font: customFont, color: rgb(0,0,0) });
+                y -= 30;
+
+                // Content Parser
+                const contentParts = scene.content.split(/(<div class="[^"]+">.*?<\/div>)/g);
+                
+                contentParts.forEach(part => {
+                    if (!part.trim()) return;
+                    
+                    let text = part.replace(/<[^>]+>/g, '').trim();
+                    let type = 'action';
+                    if (part.includes('sp-character')) type = 'character';
+                    if (part.includes('sp-dialogue')) type = 'dialogue';
+                    if (part.includes('sp-parenthetical')) type = 'parenthetical';
+                    if (part.includes('sp-slug')) type = 'slug'; 
+                    if (part.includes('sp-transition')) type = 'transition';
+
+                    if (!text) return;
+
+                    // Screenplay Layout Math
+                    let xOffset = margin;
+                    let maxWidth = contentWidth;
+                    let align = 'right'; // RTL Default
+                    
+                    if (type === 'character') {
+                        xOffset = margin + 180; // Center-ish
+                        maxWidth = 200;
+                        align = 'center';
+                    } else if (type === 'dialogue') {
+                        xOffset = margin + 100;
+                        maxWidth = 350;
+                        align = 'center'; 
+                    } else if (type === 'parenthetical') {
+                        xOffset = margin + 140;
+                        maxWidth = 250;
+                        align = 'center';
+                    } else if (type === 'transition') {
+                        xOffset = margin; // Left
+                        align = 'left';
+                    }
+
+                    const wrapped = wrapAndFormat(text, maxWidth);
+                    wrapped.forEach(l => {
+                        checkPageBreak(12);
+                        const lw = customFont.widthOfTextAtSize(l, 12);
+                        
+                        let drawX = xOffset;
+                        // Adjust X for RTL alignment within the "Block"
+                        if (align === 'right') {
+                            drawX = width - margin - lw; 
+                        } else if (align === 'center') {
+                            drawX = (width - lw) / 2;
+                        }
+
+                        page.drawText(l, { x: drawX, y, size: 12, font: customFont });
+                        y -= 14;
+                    });
+                    
+                    y -= 6; // Spacing between blocks
+                });
+
+                y -= 20; // Spacing between scenes
+            });
+        }
 
         const pdfBytes = await pdfDoc.save();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${project.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+        link.href = url;
+        link.download = `${project.title.replace(/\s+/g, '_')}_Full_Script.pdf`;
         link.click();
 
       } catch (err) {
-          console.error("PDF Gen Error", err);
-          alert("تێکچوونێک ڕوویدا لە دروستکردنی PDF. تکایە دووبارە هەوڵبدەوە.");
+          console.error("PDF Export failed", err);
+          alert("ببورە، کێشەیەک ڕوویدا لە دروستکردنی PDF.");
       } finally {
-          document.body.style.cursor = 'default';
+          setIsExporting(false);
       }
   };
 
@@ -374,40 +480,32 @@ const Dashboard: React.FC = () => {
           }
       };
       reader.readAsText(file);
-      e.target.value = ''; // reset so same file can be selected again
+      e.target.value = ''; 
   };
 
-  // Calculate Stats
-  const totalWords = projects.reduce((acc, p) => acc + p.scenes.reduce((sAcc, s) => sAcc + s.content.length / 5, 0), 0); // Rough estimate
-  const totalChars = projects.reduce((acc, p) => acc + p.characters.length, 0);
-
   return (
-    <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
+    <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative bg-zinc-950">
       <div className="max-w-7xl mx-auto w-full">
-        <div className="flex justify-between items-center mb-6 pl-0 md:pl-0">
-            <div className="flex items-center gap-4">
-                 <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">داشبۆرد</h1>
+        
+        {/* Header & Tabs */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                 <h1 className="text-2xl font-bold text-zinc-100 tracking-tight mb-1">داشبۆرد</h1>
+                 <p className="text-xs text-zinc-500">بەخێربێیتەوە بۆ زۆری. ئامادەیت بۆ نووسین؟</p>
             </div>
             
-            <div className="flex gap-2">
-                <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    accept=".json" 
-                    className="hidden" 
-                />
+            <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
                 <button 
-                    onClick={handleImportClick}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg border border-zinc-700/50"
+                  onClick={() => setActiveTab('projects')} 
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'projects' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">هاوردەکردن</span>
+                    <FileText className="w-4 h-4" /> پڕۆژەکان
                 </button>
                 <button 
-                    onClick={() => setShowNewProjectModal(true)}
-                    className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg shadow-primary-900/20"
+                  onClick={() => setActiveTab('stories')} 
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'stories' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">پڕۆژەی نوێ</span>
+                    <Book className="w-4 h-4" /> چیرۆکەکان
                 </button>
             </div>
         </div>
@@ -419,301 +517,199 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="flex-1">
                     <h3 className="text-sm font-bold text-amber-200 mb-1">پەیوەندی بە داتابەیسەوە نییە</h3>
-                    <p className="text-xs text-amber-400/80 leading-relaxed mb-2">
-                        ئەپڵیکەیشنەکە نەیتوانی پەیوەندی بە Supabaseـەوە بکات. دوو هۆکار هەیە:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-2 text-xs text-amber-300/70 font-mono text-left dir-ltr">
-                        <li className="flex items-start gap-2">
-                           <span className="mt-0.5">1.</span>
-                           <span><strong>Tables Missing:</strong> You must create the tables in Supabase SQL Editor.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                           <span className="mt-0.5">2.</span>
-                           <span><strong>Bad Credentials:</strong> Check `lib/supabase.ts` (Already Updated).</span>
-                        </li>
-                    </ol>
+                    <p className="text-xs text-amber-400/80">هەندێک تایبەتمەندی وەک دروستکردنی چیرۆک بە AI لەوانەیە کار نەکەن.</p>
                 </div>
             </div>
         )}
         
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-zinc-500 text-xs font-medium uppercase tracking-wide">کۆی وشەکان</span>
-              <FileText className="w-4 h-4 text-zinc-600" />
-            </div>
-            <div className="text-2xl font-mono text-zinc-100">{Math.floor(totalWords)}</div>
-            <div className="text-xxs text-emerald-500 mt-1 flex items-center gap-1">+١٥% لە هەفتەی پێشوو</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-zinc-500 text-xs font-medium uppercase tracking-wide">تێکڕای دانیشتن</span>
-              <Clock className="w-4 h-4 text-zinc-600" />
-            </div>
-            <div className="text-2xl font-mono text-zinc-100">٤٢ خولەک</div>
-            <div className="text-xxs text-zinc-500 mt-1">جێگیر</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg col-span-1 sm:col-span-2 md:col-span-1">
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-zinc-500 text-xs font-medium uppercase tracking-wide">کاراکتەرەکان</span>
-              <Users className="w-4 h-4 text-zinc-600" />
-            </div>
-            <div className="text-2xl font-mono text-zinc-100">{totalChars}</div>
-            <div className="text-xxs text-primary-500 mt-1 flex items-center gap-1">{projects.length} پڕۆژە</div>
-          </div>
-        </div>
-
-        {/* Projects List - Responsive Grid */}
-        <h2 className="text-sm font-medium text-zinc-400 mb-4 uppercase tracking-wide">پڕۆژەکانی ڕابردوو</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {projects.map(project => (
-              <div 
-                key={project.id}
-                onClick={() => { setCurrentProject(project.id); navigateTo('editor'); }} 
-                className="group flex flex-col p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-600 cursor-pointer transition relative h-full min-h-[180px]"
-              >
-                <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg ${project.type === 'Screenplay' ? 'bg-primary-900/20 text-primary-400' : project.type === 'Serial' ? 'bg-purple-900/20 text-purple-400' : 'bg-zinc-800 text-zinc-400'} flex items-center justify-center border border-white/5`}>
-                            {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-zinc-200 group-hover:text-white line-clamp-1 leading-tight">{project.title}</h3>
-                            <p className="text-[10px] text-zinc-500 mt-0.5">{project.type} • {project.genres?.[0] || 'General'}</p>
-                        </div>
+        {/* --- PROJECTS TAB --- */}
+        {activeTab === 'projects' && (
+            <>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wide">پڕۆژە چالاکەکان</h2>
+                    <div className="flex gap-2">
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+                        <button onClick={handleImportClick} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 border border-zinc-800">
+                            <Upload className="w-3.5 h-3.5" /> <span className="hidden sm:inline">هاوردەکردن</span>
+                        </button>
+                        <button onClick={() => setActiveTab('stories')} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-3 py-1.5 rounded flex items-center gap-2 shadow-lg shadow-primary-900/20">
+                            <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">پڕۆژەی نوێ</span>
+                        </button>
                     </div>
-                    
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}
-                        className="text-zinc-600 hover:text-red-500 transition opacity-100 md:opacity-0 group-hover:opacity-100 p-1"
-                    >
-                        <Trash2 className="w-4 h-4" />
+                </div>
+
+                {projects.length === 0 ? (
+                     <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20">
+                         <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
+                             <FileText className="w-8 h-8 text-zinc-600" />
+                         </div>
+                         <h3 className="text-lg font-medium text-zinc-300 mb-2">هیچ پڕۆژەیەک نییە</h3>
+                         <p className="text-sm text-zinc-500 max-w-xs text-center mb-6">سەرەتا چیرۆکێک دروست بکە، پاشان بیکە بە پڕۆژە بۆ دەستکردن بە نووسین.</p>
+                         <button onClick={() => setActiveTab('stories')} className="bg-primary-600 hover:bg-primary-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition">چوونە بەشی چیرۆکەکان</button>
+                     </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {projects.map(project => (
+                        <div 
+                            key={project.id}
+                            onClick={() => { setCurrentProject(project.id); navigateTo('editor'); }} 
+                            className="group flex flex-col p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-600 cursor-pointer transition relative h-full min-h-[180px]"
+                        >
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-lg ${project.type === 'Screenplay' ? 'bg-primary-900/20 text-primary-400' : project.type === 'Serial' ? 'bg-purple-900/20 text-purple-400' : 'bg-zinc-800 text-zinc-400'} flex items-center justify-center border border-white/5`}>
+                                        {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-zinc-200 group-hover:text-white line-clamp-1 leading-tight">{project.title}</h3>
+                                        <p className="text-[10px] text-zinc-500 mt-0.5">{project.type} • {project.genres?.[0] || 'General'}</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}
+                                    className="text-zinc-600 hover:text-red-500 transition opacity-100 md:opacity-0 group-hover:opacity-100 p-1"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 mb-4">
+                                <p className="text-xs text-zinc-500 leading-relaxed line-clamp-3">
+                                    {project.logline || 'هیچ کورتەیەک زیاد نەکراوە بۆ ئەم پڕۆژەیە...'}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-zinc-800/50 mt-auto">
+                                <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition">
+                                    <button onClick={(e) => handleExportJSON(e, project)} className="text-zinc-500 hover:text-zinc-200 transition" title="Backup JSON">
+                                        <Download className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={(e) => handleExportPDF(e, project)} className="text-zinc-500 hover:text-red-400 transition" title="Export PDF">
+                                        {isExporting ? <span className="animate-spin">⌛</span> : <FileDown className="w-3.5 h-3.5" />}
+                                    </button>
+                                </div>
+                                <span className="text-[10px] text-zinc-600 font-mono">
+                                    {new Date(project.updatedAt).toLocaleDateString()}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                    </div>
+                )}
+            </>
+        )}
+
+        {/* --- STORIES TAB --- */}
+        {activeTab === 'stories' && (
+            <>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wide">بیرۆکە و چیرۆکەکان</h2>
+                    <button onClick={handleCreateNewStory} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-4 py-2 rounded flex items-center gap-2 shadow-lg shadow-emerald-900/20">
+                        <Sparkles className="w-3.5 h-3.5" /> <span className="hidden sm:inline">دروستکردنی چیرۆک بە AI</span>
                     </button>
                 </div>
 
-                <div className="flex-1 mb-4">
-                    <p className="text-xs text-zinc-500 leading-relaxed line-clamp-3">
-                        {project.logline || 'هیچ کورتەیەک زیاد نەکراوە بۆ ئەم پڕۆژەیە...'}
-                    </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-zinc-800/50 mt-auto">
-                    <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition">
-                        <button 
-                            onClick={(e) => handleExportPDF(e, project)}
-                            className="text-zinc-500 hover:text-zinc-200 transition"
-                            title="PDF"
-                        >
-                            <FileDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={(e) => handleExportJSON(e, project)}
-                            className="text-zinc-500 hover:text-zinc-200 transition"
-                            title="JSON"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                        </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {/* New Story Card */}
+                    <div 
+                        onClick={handleCreateNewStory}
+                        className="flex flex-col items-center justify-center p-6 bg-zinc-900/50 border border-zinc-800 border-dashed rounded-xl hover:bg-zinc-900 hover:border-emerald-500/50 cursor-pointer transition min-h-[200px] group"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-emerald-900/20 group-hover:bg-emerald-600 text-emerald-500 group-hover:text-white flex items-center justify-center mb-3 transition">
+                            <Sparkles className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-zinc-300 group-hover:text-white">چیرۆکێکی نوێ دروست بکە</h3>
+                        <p className="text-xs text-zinc-500 text-center mt-2 max-w-[200px]">با زیرەکی دەستکرد یارمەتیت بدات لە گەڵاڵەکردنی بیرۆکەکە.</p>
                     </div>
-                    <span className="text-[10px] text-zinc-600 font-mono">
-                        {new Date(project.updatedAt).toLocaleDateString()}
-                    </span>
+
+                    {stories.map(story => (
+                        <div key={story.id} className="group flex flex-col p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-600 transition relative h-full min-h-[200px]">
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-indigo-900/20 text-indigo-400 flex items-center justify-center border border-white/5">
+                                        <Book className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-zinc-200 group-hover:text-white line-clamp-1 leading-tight">{story.title}</h3>
+                                        <p className="text-[10px] text-zinc-500 mt-0.5">{story.structuredData?.type || 'Story'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition">
+                                     <button 
+                                        onClick={(e) => handleEditStory(e, story.id)}
+                                        className="text-zinc-600 hover:text-emerald-500 p-1"
+                                        title="دەستکاری"
+                                    >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setStoryToDelete(story); }}
+                                        className="text-zinc-600 hover:text-red-500 p-1"
+                                        title="سڕینەوە"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 mb-4">
+                                <p className="text-xs text-zinc-500 leading-relaxed line-clamp-3">
+                                    {story.summary || 'هیچ کورتەیەک نییە.'}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-zinc-800/50 mt-auto">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleCreateProjectFromStory(story); }}
+                                    className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition"
+                                >
+                                    <Play className="w-2.5 h-2.5 fill-current" /> کردن بە پڕۆژە
+                                </button>
+                                <span className="text-[10px] text-zinc-600 font-mono">
+                                    {new Date(story.createdAt).toLocaleDateString()}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                    
+                    {stories.length === 0 && (
+                         <div className="col-span-full flex flex-col items-center justify-center py-20 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20">
+                             <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
+                                 <Book className="w-8 h-8 text-zinc-600" />
+                             </div>
+                             <h3 className="text-lg font-medium text-zinc-300 mb-2">هیچ چیرۆکێک نییە</h3>
+                             <p className="text-sm text-zinc-500 max-w-xs text-center mb-6">یەکەم چیرۆکت دروست بکە بە یارمەتی زیرەکی دەستکرد.</p>
+                             <button onClick={handleCreateNewStory} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition">دروستکردنی چیرۆک</button>
+                         </div>
+                    )}
                 </div>
-            </div>
-          ))}
-        </div>
+            </>
+        )}
       </div>
 
-      {/* Create Modal - Responsive Fix with fixed position for keyboard friendliness */}
-      {showNewProjectModal && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-zinc-950/80 backdrop-blur-sm">
-              <div 
-                  className="bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-2xl sm:rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90dvh] h-auto sm:h-auto overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
-                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
-              >
-                  <h3 className="text-lg font-medium text-zinc-100 mb-4 flex-shrink-0">دەستپێکردنی پڕۆژەی نوێ</h3>
-                  <form onSubmit={handleCreate} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-2">
-                      {/* ... Form Content ... */}
-                      <div className="space-y-3">
-                          <label className="block text-xs text-zinc-500 font-semibold uppercase tracking-wider">جۆر هەڵبژێرە</label>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div 
-                                onClick={() => setProjectType('Screenplay')}
-                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Screenplay' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
-                              >
-                                  <Clapperboard className="w-5 h-5" />
-                                  <span className="text-xs font-medium">سیناریۆ</span>
-                              </div>
-                              <div 
-                                onClick={() => { setProjectType('Novel'); setProjectFormat('Standard'); }}
-                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Novel' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
-                              >
-                                  <Book className="w-5 h-5" />
-                                  <span className="text-xs font-medium">ڕۆمان</span>
-                              </div>
-                              <div 
-                                onClick={() => { setProjectType('Serial'); setProjectFormat('Episode'); }}
-                                className={`cursor-pointer p-3 rounded-lg border text-center transition flex flex-col items-center gap-2 ${projectType === 'Serial' ? 'bg-primary-600/10 border-primary-600 text-primary-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'}`}
-                              >
-                                  <Tv className="w-5 h-5" />
-                                  <span className="text-xs font-medium">زنجیرە</span>
-                              </div>
-                          </div>
-                      </div>
-
-                      {projectType === 'Screenplay' && (
-                          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                              <label className="block text-xs text-zinc-500">فۆرماتی سیناریۆ</label>
-                              <div className="flex flex-col sm:flex-row gap-3">
-                                  <button 
-                                    type="button"
-                                    onClick={() => setProjectFormat('Feature')}
-                                    className={`flex-1 py-2 text-xs rounded border transition ${projectFormat === 'Feature' ? 'bg-zinc-800 border-primary-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
-                                  >
-                                      فیلمی درێژ
-                                  </button>
-                                  <button 
-                                    type="button"
-                                    onClick={() => setProjectFormat('Short')}
-                                    className={`flex-1 py-2 text-xs rounded border transition ${projectFormat === 'Short' ? 'bg-zinc-800 border-primary-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
-                                  >
-                                      فیلمی کورت
-                                  </button>
-                              </div>
-                          </div>
-                      )}
-
-                      <div className="space-y-4">
-                          <div>
-                              <label className="block text-xs text-zinc-500 mb-1">ناونیشان</label>
-                              <input 
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none"
-                                value={newTitle}
-                                onChange={e => setNewTitle(e.target.value)}
-                                required
-                                placeholder={projectType === 'Screenplay' ? "نموونە: مەریخییەکە" : "نموونە: گاتسبی مەزن"}
-                              />
-                          </div>
-                          <div>
-                              <label className="block text-xs text-zinc-500 mb-2">ژانر (تا ٥ دانە دیاری بکە)</label>
-                              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-zinc-800 rounded bg-zinc-950/50">
-                                  {GENRES.map(genre => (
-                                      <button
-                                        key={genre}
-                                        type="button"
-                                        onClick={() => toggleGenre(genre)}
-                                        className={`text-xs px-2 py-1 rounded border transition ${
-                                            newGenres.includes(genre) 
-                                            ? 'bg-primary-600 border-primary-500 text-white' 
-                                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:text-zinc-200 hover:bg-zinc-700'
-                                        }`}
-                                      >
-                                          {genre}
-                                      </button>
-                                  ))}
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {newGenres.map(g => (
-                                      <span key={g} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary-900/30 text-primary-300 border border-primary-500/20 text-xxs">
-                                          {g} <X className="w-2.5 h-2.5 cursor-pointer hover:text-white" onClick={() => toggleGenre(g)} />
-                                      </span>
-                                  ))}
-                              </div>
-                          </div>
-                      </div>
-                      
-                      <div className="border-t border-zinc-800 pt-4 mt-2">
-                          <p className="text-xs text-zinc-400 mb-4">یارمەتی زیرەکی دەستکرد بدە لە تێگەیشتن لە چیرۆکەکەت:</p>
-                          
-                          <div className="space-y-4">
-                              <div>
-                                  <label className="block text-xs text-zinc-500 mb-1">کورتەی چیرۆک (چیرۆکەکە دەربارەی چییە؟)</label>
-                                  <textarea 
-                                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none h-16 resize-none"
-                                      value={newLogline}
-                                      onChange={e => setNewLogline(e.target.value)}
-                                      placeholder="نموونە: ئاسمانەوانێک لەسەر مەریخ گیر دەخوات..."
-                                  />
-                              </div>
-
-                              <div>
-                                  <label className="block text-xs text-zinc-500 mb-1">وردەکاری چیرۆک (Detailed Story)</label>
-                                  <textarea 
-                                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none h-24 resize-none"
-                                      value={newDetailedStory}
-                                      onChange={e => setNewDetailedStory(e.target.value)}
-                                      placeholder="تەواوی چیرۆکەکە بە وردی بنووسە لێرە تا زیرەکی دەستکرد بیزانێت..."
-                                  />
-                              </div>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div>
-                                      <label className="block text-xs text-zinc-500 mb-1">بابەت (Theme)</label>
-                                      <input 
-                                          className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none"
-                                          value={newTheme}
-                                          onChange={e => setNewTheme(e.target.value)}
-                                          placeholder="نموونە: مانەوە دژی سروشت"
-                                      />
-                                  </div>
-                                  <div>
-                                      <label className="block text-xs text-zinc-500 mb-1">شوێن و کات</label>
-                                      <input 
-                                          className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none"
-                                          value={newSetting}
-                                          onChange={e => setNewSetting(e.target.value)}
-                                          placeholder="نموونە: مەریخ، ٢٠٣٥"
-                                      />
-                                  </div>
-                              </div>
-
-                              <div>
-                                  <label className="block text-xs text-zinc-500 mb-1">ئامانجی پاڵەوان</label>
-                                  <input 
-                                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 focus:outline-none"
-                                      value={newGoal}
-                                      onChange={e => setNewGoal(e.target.value)}
-                                      placeholder="نموونە: مانەوە تا گەیشتنی تیمەکە"
-                                  />
-                              </div>
-                          </div>
-                      </div>
-                  </form>
-                  <div className="flex gap-2 justify-end pt-4 border-t border-zinc-800 flex-shrink-0">
-                      <button type="button" onClick={() => setShowNewProjectModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
-                      <button type="submit" onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">دروستکردن</button>
+      {/* Confirmation Modal for Project Deletion */}
+      {projectToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                  <h3 className="text-lg font-bold text-zinc-100 mb-2">سڕینەوەی پڕۆژە</h3>
+                  <p className="text-sm text-zinc-400 mb-6">ئایا دڵنیایت دەتەوێت پڕۆژەی "{projectToDelete.title}" بسڕیتەوە؟ ئەم کرداره گەڕانەوەی نییە.</p>
+                  <div className="flex gap-3 justify-end">
+                      <button onClick={() => setProjectToDelete(null)} className="text-xs text-zinc-400 hover:text-white px-3 py-2">پاشگەزبوونەوە</button>
+                      <button onClick={confirmDeleteProject} className="bg-red-600 hover:bg-red-500 text-white text-xs font-medium px-4 py-2 rounded">سڕینەوە</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {projectToDelete && (
-          <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl w-full max-w-sm shadow-2xl">
-                  <div className="flex flex-col items-center text-center mb-4">
-                      <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center mb-3">
-                          <AlertTriangle className="w-6 h-6 text-red-500" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-zinc-100">سڕینەوەی پڕۆژە؟</h3>
-                      <p className="text-xs text-zinc-400 mt-1">
-                          ئایا دڵنیایت دەتەوێت <span className="font-bold text-zinc-200">{projectToDelete.title}</span> بسڕیتەوە؟ ئەم کردارە پاشگەزبوونەوەی نییە.
-                      </p>
-                  </div>
-                  
-                  <div className="flex gap-3 justify-center mt-6">
-                      <button 
-                          onClick={() => setProjectToDelete(null)} 
-                          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium px-4 py-2.5 rounded transition"
-                      >
-                          نەخێر
-                      </button>
-                      <button 
-                          onClick={confirmDelete} 
-                          className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-medium px-4 py-2.5 rounded transition shadow-lg shadow-red-900/20"
-                      >
-                          بەڵێ، بسڕەوە
-                      </button>
+      {/* Confirmation Modal for Story Deletion */}
+      {storyToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                  <h3 className="text-lg font-bold text-zinc-100 mb-2">سڕینەوەی چیرۆک</h3>
+                  <p className="text-sm text-zinc-400 mb-6">ئایا دڵنیایت دەتەوێت چیرۆکی "{storyToDelete.title}" بسڕیتەوە؟</p>
+                  <div className="flex gap-3 justify-end">
+                      <button onClick={() => setStoryToDelete(null)} className="text-xs text-zinc-400 hover:text-white px-3 py-2">پاشگەزبوونەوە</button>
+                      <button onClick={confirmDeleteStory} className="bg-red-600 hover:bg-red-500 text-white text-xs font-medium px-4 py-2 rounded">سڕینەوە</button>
                   </div>
               </div>
           </div>

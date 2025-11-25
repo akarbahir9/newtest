@@ -1,6 +1,6 @@
 
 
-export type ViewType = 'editor' | 'dashboard' | 'search' | 'inbox' | 'characters' | 'locations' | 'settings' | 'outline';
+export type ViewType = 'editor' | 'dashboard' | 'search' | 'inbox' | 'characters' | 'locations' | 'settings' | 'outline' | 'story-builder';
 
 export type ProjectType = 'Screenplay' | 'Novel' | 'Serial';
 export type ProjectFormat = 'Feature' | 'Short' | 'Episode' | 'Standard';
@@ -17,6 +17,9 @@ export interface ChatMessage {
     role: 'user' | 'model';
     text: string;
     hasContradiction?: boolean;
+    // New fields for Story Builder interactivity
+    options?: string[];
+    isMultiSelect?: boolean;
 }
 
 export interface TargetMetadata {
@@ -31,6 +34,28 @@ export interface TargetMetadata {
     totalSeasons?: number;
     episodesPerSeason?: number;
     episodeDuration?: number;
+}
+
+export interface StoryData {
+    title: string;
+    type: ProjectType;
+    format: ProjectFormat;
+    genres: string[];
+    logline: string;
+    detailedStory: string;
+    theme: string;
+    setting: string;
+    protagonistGoal: string;
+    characters?: any[]; // Initial character ideas
+}
+
+export interface Story {
+    id: string;
+    title: string;
+    summary?: string; // Quick display summary
+    chatSession: ChatMessage[]; // The history of the creation chat
+    structuredData: StoryData; // The final data to spawn a project
+    createdAt: string;
 }
 
 export interface Project {
@@ -51,7 +76,9 @@ export interface Project {
     scenes: Scene[];
     characters: Character[];
     locations: Location[];
-    chatHistory?: ChatMessage[];
+    chatHistory?: ChatMessage[]; // Editor Chat
+    planChatHistory?: ChatMessage[]; // Blueprint/Plan Chat
+    sourceStoryId?: string; // Link back to the concept story
 }
 
 export interface Scene {

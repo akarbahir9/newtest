@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, PanelLeft
+  FileCheck, Replace, PanelLeft, Loader2, RotateCcw
 } from 'lucide-react';
-import { generateAssistantResponse } from '../services/geminiService';
+import { generateAssistantResponse, generateStoryboardImage } from '../services/geminiService';
 import { ChatMessage, Character } from '../types';
 import { useProject } from '../context/ProjectContext';
 
@@ -96,13 +95,21 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 };
 
 const RightPanel: React.FC = () => {
-  const { currentProject, currentSceneId, updateSceneContent, updateProject, updateCharacter, addChatMessage, isRightPanelOpen, setRightPanelOpen, replaceTextInProject } = useProject();
+  const { 
+    currentProject, currentSceneId, updateSceneContent, updateProject, updateCharacter, 
+    addCharacter, addLocation, addScene, deleteCharacter, deleteLocation, deleteScene, bulkDeleteItems,
+    addChatMessage, showConfirmation, isRightPanelOpen, replaceTextInProject 
+  } = useProject();
   const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
   
   // Chat State
   const [input, setInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Visuals State
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState(false);
 
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   
@@ -112,11 +119,30 @@ const RightPanel: React.FC = () => {
   // Reset loading state when project changes to avoid ghost loading states
   useEffect(() => {
     setIsChatLoading(false);
+    setGeneratedImage(null);
+    setIsImageLoading(false);
   }, [currentProject?.id]);
+
+  useEffect(() => {
+    // Reset image when scene changes
+    setGeneratedImage(null);
+  }, [currentSceneId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isChatLoading, currentProject?.id]);
+
+  const handleGenerateImage = async () => {
+    if (!scene || !scene.content) return;
+    setIsImageLoading(true);
+    // Strip HTML tags for cleaner prompt
+    const plainText = scene.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const imgData = await generateStoryboardImage(plainText || scene.title);
+    if (imgData) {
+      setGeneratedImage(imgData);
+    }
+    setIsImageLoading(false);
+  };
 
   const buildDeepContext = () => {
       const charDetails = currentProject?.characters.map(c => {
@@ -125,7 +151,7 @@ const RightPanel: React.FC = () => {
               return `${r.type} of ${target} (${r.description})`;
           }).join(', ');
           
-          return `* [ID: ${c.id}] ${c.name} (${c.role}, ${c.archetype}): ${c.description}. Traits: [${c.traits.join(', ')}]. ${rels ? `Relationships: ${rels}` : ''}`;
+          return `- ID: "${c.id}" | Name: "${c.name}" | Role: ${c.role} (${c.archetype}) | Traits: [${c.traits.join(', ')}] | Desc: ${c.description} ${rels ? `| Rels: ${rels}` : ''}`;
       }).join('\n');
 
       const genreString = currentProject?.genres.join(', ') || 'Unknown Genre';
@@ -135,9 +161,13 @@ const RightPanel: React.FC = () => {
         .map(s => {
             const isCurrent = s.id === currentSceneId;
             const cleanContent = s.content ? s.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
-            return `SCENE ${s.number} [${s.title}]${isCurrent ? ' (CURRENTLY EDITING)' : ''}:\n${cleanContent}\n`;
+            return `- ID: "${s.id}" | SCENE ${s.number} [${s.title}]${isCurrent ? ' (CURRENTLY EDITING)' : ''}: ${cleanContent}`;
         })
-        .join('\n----------------\n') || "No scenes yet.";
+        .join('\n') || "No scenes yet.";
+        
+      const locationDetails = currentProject?.locations.map(l => 
+          `- ID: "${l.id}" | Name: "${l.name}" | Type: ${l.type} | Desc: ${l.description}`
+      ).join('\n');
 
       return `
         Project: ${currentProject?.title || 'Untitled'}
@@ -149,13 +179,17 @@ const RightPanel: React.FC = () => {
         Setting: ${currentProject?.setting || 'N/A'}
         Protagonist Goal: ${currentProject?.protagonistGoal || 'N/A'}
         
-        CHARACTERS & RELATIONSHIPS (Note IDs for updates):
+        === PLAN / BLUEPRINT ===
+        ${currentProject?.blueprint || 'No plan defined.'}
+        
+        === CHARACTERS (IDs are UUIDs) ===
         ${charDetails || 'No characters defined.'}
+        
+        === LOCATIONS (IDs are UUIDs) ===
+        ${locationDetails || 'No locations defined.'}
 
         === FULL SCRIPT MEMORY ===
-        
         ${fullScriptHistory}
-        
         === END SCRIPT MEMORY ===
 
         CURRENT SCENE (Raw HTML): ${scene?.title || 'Unknown'}
@@ -220,6 +254,65 @@ const RightPanel: React.FC = () => {
                         addChatMessage(projectId, confirmMsg);
                      }
 
+                } else if (call.name === 'create_character') {
+                     addCharacter({
+                        name: call.args.name,
+                        role: call.args.role || 'Supporting',
+                        archetype: call.args.archetype || '',
+                        description: call.args.description || '',
+                        traits: call.args.traits || []
+                     });
+                     const confirmMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `✅ کاراکتەری نوێ "${call.args.name}" دروستکرا.`
+                    };
+                    addChatMessage(projectId, confirmMsg);
+
+                } else if (call.name === 'bulk_create_characters') {
+                     const chars = call.args.characters || [];
+                     for (const c of chars) {
+                         addCharacter({
+                             name: c.name,
+                             role: c.role || 'Supporting',
+                             archetype: c.archetype || '',
+                             description: c.description || '',
+                             traits: c.traits || []
+                         });
+                     }
+                     const confirmMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `✅ ${chars.length} کاراکتەر لەسەر بنەمای پلانەکە دروستکران.`
+                    };
+                    addChatMessage(projectId, confirmMsg);
+
+                } else if (call.name === 'create_location') {
+                     addLocation({
+                        name: call.args.name,
+                        type: call.args.type || 'MIXED',
+                        description: call.args.description || ''
+                     });
+                     const confirmMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `✅ شوێنی نوێ "${call.args.name}" دروستکرا.`
+                    };
+                    addChatMessage(projectId, confirmMsg);
+
+                } else if (call.name === 'create_scene') {
+                     addScene(undefined, {
+                         title: call.args.title,
+                         content: call.args.content,
+                         summary: call.args.summary
+                     });
+                     const confirmMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `✅ دیمەنی نوێ "${call.args.title}" زیادکرا بۆ پڕۆژەکە.`
+                    };
+                    addChatMessage(projectId, confirmMsg);
+
                 } else if (call.name === 'update_scene') {
                     let targetId = call.args.sceneId;
                     if (targetId === 'current' || !targetId) targetId = currentSceneId;
@@ -233,6 +326,76 @@ const RightPanel: React.FC = () => {
                        };
                        addChatMessage(projectId, confirmMsg);
                     }
+
+                } else if (call.name === 'delete_item') {
+                    const { id, type } = call.args;
+                    let itemName = 'item';
+                    
+                    if (type === 'character') itemName = currentProject.characters.find(c => c.id === id)?.name || 'Character';
+                    if (type === 'location') itemName = currentProject.locations.find(l => l.id === id)?.name || 'Location';
+                    if (type === 'scene') itemName = currentProject.scenes.find(s => s.id === id)?.title || 'Scene';
+
+                    showConfirmation(`ئایا دڵنیایت دەتەوێت ${type === 'character' ? 'کاراکتەری' : type === 'location' ? 'شوێنی' : 'دیمەنی'} "${itemName}" بسڕیتەوە؟`, () => {
+                         if (type === 'character') deleteCharacter(id);
+                         if (type === 'location') deleteLocation(id);
+                         if (type === 'scene') deleteScene(id);
+                         
+                         const confirmMsg: ChatMessage = {
+                            id: generateId(),
+                            role: 'model',
+                            text: `✅ ${itemName} سڕایەوە.`
+                        };
+                        addChatMessage(projectId, confirmMsg);
+                    });
+                    
+                    const tempMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `⚠️ داوای ڕەزامەندی سڕینەوەی "${itemName}" دەکەم...`
+                    };
+                    addChatMessage(projectId, tempMsg);
+
+                } else if (call.name === 'bulk_delete_items') {
+                    const items: {id: string, type: 'character' | 'location' | 'scene'}[] = call.args.items || [];
+                    
+                    if (items.length === 0) {
+                        const failMsg: ChatMessage = {
+                            id: generateId(),
+                            role: 'model',
+                            text: `⚠️ هیچ ئایتمێک نەدۆزرایەوە بۆ سڕینەوە.`
+                        };
+                        addChatMessage(projectId, failMsg);
+                        return; // Continue loop if there are other calls, but return here avoids error
+                    }
+
+                    // Count items for the message
+                    const counts = { character: 0, location: 0, scene: 0 };
+                    items.forEach(i => counts[i.type]++);
+                    
+                    const summaryParts = [];
+                    if (counts.character > 0) summaryParts.push(`${counts.character} کاراکتەر`);
+                    if (counts.location > 0) summaryParts.push(`${counts.location} شوێن`);
+                    if (counts.scene > 0) summaryParts.push(`${counts.scene} دیمەن`);
+                    
+                    const summaryText = summaryParts.join(' و ');
+
+                    showConfirmation(`ئایا دڵنیایت دەتەوێت ${items.length} ئایتم (${summaryText}) بەیەکەوە بسڕیتەوە؟`, () => {
+                         bulkDeleteItems(items);
+                         
+                         const confirmMsg: ChatMessage = {
+                            id: generateId(),
+                            role: 'model',
+                            text: `✅ ${items.length} ئایتم بە سەرکەوتوویی سڕانەوە.`
+                        };
+                        addChatMessage(projectId, confirmMsg);
+                    });
+                    
+                    const tempMsg: ChatMessage = {
+                        id: generateId(),
+                        role: 'model',
+                        text: `⚠️ داوای ڕەزامەندی سڕینەوەی ${items.length} ئایتم دەکەم...`
+                    };
+                    addChatMessage(projectId, tempMsg);
 
                 } else if (call.name === 'find_replace') {
                     const { search, replace, scope } = call.args;
@@ -362,7 +525,7 @@ const RightPanel: React.FC = () => {
         const content = part.replace(/<\/?screenplay>/g, '').trim();
         return (
           <div key={index} className="my-3 relative group">
-             <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden relative">
+             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 shadow-lg overflow-hidden relative">
                 <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => handleInsert(content)}
@@ -530,47 +693,73 @@ const RightPanel: React.FC = () => {
                     </button>
                 </div>
             </div>
+            
+            {/* Chat Input */}
+            <div className="p-2 md:p-3 border-t border-zinc-800 bg-zinc-900/30 flex-shrink-0">
+                <div className="relative">
+                <textarea 
+                    rows={2} 
+                    placeholder="داوا لە زۆری بکە شیکاری بکات یان بنووسێت..." 
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-base md:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 resize-none"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                ></textarea>
+                <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                    <button className="p-1 hover:bg-zinc-800 rounded text-zinc-500 transition"><Mic className="w-3 h-3" /></button>
+                    <button onClick={handleSend} className="p-1 bg-zinc-100 hover:bg-white text-zinc-950 rounded transition shadow-lg shadow-white/10"><ArrowUp className="w-3 h-3" /></button>
+                </div>
+                </div>
+                <div className="mt-2 flex justify-between items-center px-1">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-xxs text-zinc-500 hidden sm:block">مۆدێل: Gemini 2.5</span>
+                    </div>
+                    <span className="text-xxs text-zinc-600">Cmd+K بۆ فرمانەکان</span>
+                </div>
+            </div>
         </>
       )}
 
       {activeTab === 'visuals' && (
-        <div className="flex-1 overflow-y-auto p-4">
-             <div className="grid grid-cols-2 gap-2">
-                 <div className="aspect-square bg-zinc-800 rounded border border-zinc-700 flex items-center justify-center text-zinc-600">
-                     <Image className="w-6 h-6" />
-                 </div>
-                 <div className="aspect-square bg-zinc-800 rounded border border-zinc-700 flex items-center justify-center text-zinc-600">
-                     <Image className="w-6 h-6" />
-                 </div>
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
+             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 w-full text-center mb-6">
+                <h3 className="text-sm font-bold text-zinc-200 mb-1">وێنەکێشانی دیمەن (Storyboard Sketch)</h3>
+                <p className="text-xs text-zinc-500 mb-4">دیمەنی ئێستا بکە بە وێنەیەکی ڕەش و سپی سینەمایی.</p>
+                
+                {generatedImage ? (
+                    <div className="relative group">
+                        <img src={generatedImage} alt="Storyboard sketch" className="w-full rounded-lg shadow-lg border border-zinc-700" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                             <a href={generatedImage} download="storyboard_sketch.png" className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full hover:bg-zinc-200">
+                                 داگرتن
+                             </a>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="aspect-square bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex flex-col items-center justify-center text-zinc-600">
+                        <Image className="w-8 h-8 mb-2 opacity-50" />
+                        <span className="text-xs">هیچ وێنەیەک نییە</span>
+                    </div>
+                )}
+
+                <div className="mt-4 flex justify-center">
+                     <button 
+                        onClick={handleGenerateImage}
+                        disabled={isImageLoading || !scene}
+                        className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                     >
+                        {isImageLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (generatedImage ? <RotateCcw className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />)}
+                        {generatedImage ? "دروستکردنەوە" : "دروستکردنی سکێچ"}
+                     </button>
+                </div>
              </div>
-             <p className="text-xxs text-zinc-500 text-center mt-2">وێنەی دروستکراوی دیمەن</p>
+             
+             {!scene && (
+                 <p className="text-xs text-zinc-500 text-center">تکایە سەرەتا دیمەنێک لە دەستکاریکەر (Editor) دیاری بکە.</p>
+             )}
         </div>
       )}
-
-      {/* Chat Input */}
-      <div className="p-2 md:p-3 border-t border-zinc-800 bg-zinc-900/30 flex-shrink-0">
-        <div className="relative">
-          <textarea 
-            rows={2} 
-            placeholder="داوا لە زۆری بکە شیکاری بکات یان بنووسێت..." 
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-base md:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 resize-none"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-          ></textarea>
-          <div className="absolute bottom-2 left-2 flex items-center gap-1">
-            <button className="p-1 hover:bg-zinc-800 rounded text-zinc-500 transition"><Mic className="w-3 h-3" /></button>
-            <button onClick={handleSend} className="p-1 bg-zinc-100 hover:bg-white text-zinc-950 rounded transition shadow-lg shadow-white/10"><ArrowUp className="w-3 h-3" /></button>
-          </div>
-        </div>
-        <div className="mt-2 flex justify-between items-center px-1">
-             <div className="flex items-center gap-2">
-                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                 <span className="text-xxs text-zinc-500 hidden sm:block">مۆدێل: Gemini 2.5</span>
-             </div>
-             <span className="text-xxs text-zinc-600">Cmd+K بۆ فرمانەکان</span>
-        </div>
-      </div>
     </aside>
   );
 };

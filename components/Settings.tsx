@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { Save, X } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -19,13 +21,21 @@ const Settings: React.FC = () => {
     setting: string;
     protagonistGoal: string;
     genres: string[];
+    targetMetadata: {
+        durationMinutes?: number;
+        targetPageCount?: number;
+        totalSeasons?: number;
+        episodesPerSeason?: number;
+        episodeDuration?: number;
+    }
   }>({
     title: '',
     logline: '',
     theme: '',
     setting: '',
     protagonistGoal: '',
-    genres: []
+    genres: [],
+    targetMetadata: {}
   });
 
   useEffect(() => {
@@ -36,13 +46,21 @@ const Settings: React.FC = () => {
         theme: currentProject.theme || '',
         setting: currentProject.setting || '',
         protagonistGoal: currentProject.protagonistGoal || '',
-        genres: currentProject.genres || []
+        genres: currentProject.genres || [],
+        targetMetadata: currentProject.targetMetadata || {}
       });
     }
   }, [currentProject]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleMetadataChange = (field: string, value: number) => {
+      setFormData(prev => ({
+          ...prev,
+          targetMetadata: { ...prev.targetMetadata, [field]: value }
+      }));
   };
 
   const toggleGenre = (genre: string) => {
@@ -83,6 +101,63 @@ const Settings: React.FC = () => {
                     className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
                 />
               </div>
+
+              {/* Specific Structural Settings */}
+              {currentProject.type === 'Screenplay' && (
+                  <div>
+                      <label className="block text-xs text-zinc-500 mb-1">ماوەی خەمڵێنراو (خولەک)</label>
+                      <input 
+                          type="number"
+                          value={formData.targetMetadata.durationMinutes || 110}
+                          onChange={(e) => handleMetadataChange('durationMinutes', parseInt(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                      />
+                  </div>
+              )}
+
+              {currentProject.type === 'Novel' && (
+                  <div>
+                      <label className="block text-xs text-zinc-500 mb-1">ژمارەی لاپەڕەی خەمڵێنراو</label>
+                      <input 
+                          type="number"
+                          value={formData.targetMetadata.targetPageCount || 300}
+                          onChange={(e) => handleMetadataChange('targetPageCount', parseInt(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                      />
+                  </div>
+              )}
+
+              {currentProject.type === 'Serial' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                          <label className="block text-xs text-zinc-500 mb-1">ژمارەی وەرزەکان</label>
+                          <input 
+                              type="number"
+                              value={formData.targetMetadata.totalSeasons || 1}
+                              onChange={(e) => handleMetadataChange('totalSeasons', parseInt(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs text-zinc-500 mb-1">ئەڵقە لە هەر وەرزێکدا</label>
+                          <input 
+                              type="number"
+                              value={formData.targetMetadata.episodesPerSeason || 8}
+                              onChange={(e) => handleMetadataChange('episodesPerSeason', parseInt(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs text-zinc-500 mb-1">ماوەی هەر ئەڵقەیەک (خولەک)</label>
+                          <input 
+                              type="number"
+                              value={formData.targetMetadata.episodeDuration || 50}
+                              onChange={(e) => handleMetadataChange('episodeDuration', parseInt(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
+                          />
+                      </div>
+                  </div>
+              )}
               
               {/* Genres Editor */}
               <div>
