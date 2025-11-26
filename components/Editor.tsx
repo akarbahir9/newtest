@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { Film, Undo, Redo, ZoomIn, ZoomOut, MapPin, User, MessageSquare, AlignLeft, ArrowRight, Parentheses, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Film, Undo, Redo, ZoomIn, ZoomOut, MapPin, User, MessageSquare, AlignLeft, ArrowRight, Parentheses, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { generateAutocomplete } from '../services/geminiService';
 
@@ -15,6 +16,40 @@ const generateId = () => {
 // A4 Specs
 const MARGIN_BOTTOM_PX = 96; // ~25mm
 
+// --- Blueprint Parser Helper (Quick inline for Editor efficiency) ---
+const extractGoalAndTarget = (blueprint: string, sceneNumber: number, type: string) => {
+    if (!blueprint) return { goal: null, target: null };
+    
+    let goal = null;
+    let target = null;
+    
+    // Robust Regex to find the SECTION in the plan
+    // Logic: Look for "## Chapter N" or "### Scene N"
+    // Then capture everything UNTIL the next header "##" or "###"
+    // This allows us to search for the [Goal] tag anywhere within that block (even next lines)
+    
+    // 1. Find the start of the section
+    const headerPattern = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
+    
+    const match = blueprint.match(headerPattern);
+    
+    if (match) {
+        // match[0] is the full text of the section
+        const sectionContent = match[0];
+        
+        // Extract Goal (Flexible formats: **Goal:**, [Goal: ...], Goal: ...)
+        // We search within the entire section content
+        const goalMatch = sectionContent.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        if (goalMatch && goalMatch[1]) goal = goalMatch[1].trim();
+        
+        // Extract Target (Flexible formats: [Page Target: ...], Target: ..., Length: ..., Word Count: ...)
+        const targetMatch = sectionContent.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        if (targetMatch && targetMatch[1]) target = targetMatch[1].trim();
+    }
+    
+    return { goal, target };
+};
+
 // --- Sub-Component: Single Page ---
 interface PageProps {
     id: string;
@@ -27,9 +62,10 @@ interface PageProps {
     isNovelMode: boolean;
     projectMetadata: any;
     zoomLevel: number;
+    sceneNumber: number;
 }
 
-const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode, projectMetadata, zoomLevel }: PageProps) => {
+const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode, projectMetadata, zoomLevel, sceneNumber }: PageProps) => {
     const pageRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
     const ghostTextRef = useRef<HTMLSpanElement | null>(null);
@@ -102,7 +138,14 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         // 2. Setup Versioning to prevent race conditions
         const currentVersion = ++requestVersion.current;
         
-        // 3. Call AI
+        // 3. Extract Goals & Targets from blueprint
+        const { goal, target } = extractGoalAndTarget(
+            projectMetadata.blueprint || '', 
+            sceneNumber, 
+            projectMetadata.type
+        );
+        
+        // 4. Call AI
         const suggestion = await generateAutocomplete(contextText, {
             type: isNovelMode ? 'Novel' : 'Screenplay',
             genre: projectMetadata.genres?.join(', ') || 'General',
@@ -111,15 +154,18 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             logline: projectMetadata.logline,
             setting: projectMetadata.setting,
             goal: projectMetadata.protagonistGoal,
-            characters: projectMetadata.characters?.map((c: any) => `${c.name} (${c.role})`).join('; ')
+            pov: projectMetadata.pov,
+            characters: projectMetadata.characters?.map((c: any) => `${c.name} (${c.role})`).join('; '),
+            sceneGoal: goal || undefined,
+            pageTarget: target || undefined
         });
 
-        // 4. Validate State (User hasn't typed anything else)
+        // 5. Validate State (User hasn't typed anything else)
         if (currentVersion !== requestVersion.current) return;
         if (!suggestion) return;
         if (document.activeElement !== pageRef.current) return;
 
-        // 5. Insert Ghost Text
+        // 6. Insert Ghost Text
         insertGhostElement(suggestion);
     };
 
@@ -313,6 +359,14 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                 return;
             }
         }
+
+        // Enter: For novel mode, ensure paragraphs are created
+        if (e.key === 'Enter' && isNovelMode) {
+             // Let default behavior happen but ensure it's wrapped in P if raw
+             // Most browsers handle this, but sometimes they insert divs.
+             // We can let it slide for now as CSS handles p/div similarly in novel mode
+             // or we could force execCommand('insertParagraph')
+        }
         
         // Escape: Dismiss Ghost
         if (e.key === 'Escape') {
@@ -343,14 +397,15 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                 suppressContentEditableWarning
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                className={`page-surface bg-zinc-900 border border-zinc-800 shadow-2xl text-[15px] leading-relaxed outline-none text-zinc-300 ${isNovelMode ? 'font-serif novel-mode' : 'font-screenplay screenplay-mode'} whitespace-pre-wrap`}
+                className={`page-surface bg-zinc-900 border border-zinc-800 shadow-2xl text-[16px] leading-relaxed outline-none text-zinc-300 ${isNovelMode ? 'font-novel novel-content' : 'font-screenplay screenplay-mode'} whitespace-pre-wrap`}
                 style={{
                     width: '210mm',
                     height: '297mm',
                     padding: '25mm 20mm 20mm 20mm', 
                     boxSizing: 'border-box',
                     overflow: 'hidden', 
-                    position: 'relative'
+                    position: 'relative',
+                    textAlign: isNovelMode ? 'justify' : 'right'
                 }}
             />
             {/* Page Number - Bottom Center */}
@@ -402,7 +457,7 @@ const FormattingToolbar: React.FC<{ onFormat: (cls: string) => void, activeForma
 // --- Main Editor Component ---
 
 const Editor: React.FC = () => {
-  const { currentProject, currentSceneId, navigateTo, updateSceneContent, isRightPanelOpen, setRightPanelOpen, isSidebarOpen, setSidebarOpen, setCurrentSceneId } = useProject();
+  const { currentProject, currentSceneId, navigateTo, updateSceneContent, updateProject, isRightPanelOpen, setRightPanelOpen, isSidebarOpen, setSidebarOpen, setCurrentSceneId } = useProject();
   
   const [pages, setPages] = useState<{id: string, content: string}[]>([{id: 'init', content: ''}]);
   const [focusTarget, setFocusTarget] = useState<{ id: string, mode: 'start' | 'end' } | null>(null);
@@ -472,6 +527,8 @@ const Editor: React.FC = () => {
   // Detect Active Format based on Selection
   useEffect(() => {
       const checkFormat = () => {
+          if (isNovelMode) return; // Skip format checking in Novel mode
+
           const sel = window.getSelection();
           if (!sel?.anchorNode) {
               setActiveFormat('');
@@ -514,7 +571,7 @@ const Editor: React.FC = () => {
           document.removeEventListener('mouseup', checkFormat);
           document.removeEventListener('click', checkFormat);
       };
-  }, []);
+  }, [isNovelMode]);
 
   // Push to history with optional replacement
   const pushToHistory = useCallback((newPages: {id: string, content: string}[], replace = false) => {
@@ -808,9 +865,13 @@ const Editor: React.FC = () => {
                      <span className="hidden md:inline">/</span>
                 </div>
                 <div className="flex items-center gap-2 min-w-0">
-                    <Film className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                    {isNovelMode ? (
+                        <BookOpen className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                    ) : (
+                        <Film className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                    )}
                     <span className="text-sm font-bold text-zinc-200 truncate" title={scene.title}>
-                        {isNovelMode ? 'بەشی' : 'دیمەنی'} {String(scene.number).padStart(3, '0')} - {scene.title}
+                        {isNovelMode ? `بەشی ${scene.number}` : `دیمەنی ${String(scene.number).padStart(3, '0')}`} - {scene.title}
                     </span>
                 </div>
             </div>
@@ -821,7 +882,7 @@ const Editor: React.FC = () => {
                     onClick={handleNextScene} 
                     disabled={!nextScene}
                     className={`p-1.5 rounded-full border transition ${!nextScene ? 'border-zinc-800 text-zinc-800 cursor-not-allowed' : 'border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 hover:border-zinc-600'}`}
-                    title="دیمەنی داهاتوو (Ctrl+Left)"
+                    title="Next (Ctrl+Left)"
                 >
                     <ChevronRight className="w-4 h-4" /> {/* Flipped: Next is now Right icon */}
                 </button>
@@ -832,7 +893,7 @@ const Editor: React.FC = () => {
                     onClick={handlePrevScene} 
                     disabled={!prevScene}
                     className={`p-1.5 rounded-full border transition ${!prevScene ? 'border-zinc-800 text-zinc-800 cursor-not-allowed' : 'border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 hover:border-zinc-600'}`}
-                    title="دیمەنی پێشوو (Ctrl+Right)"
+                    title="Previous (Ctrl+Right)"
                 >
                     <ChevronLeft className="w-4 h-4" /> {/* Flipped: Prev is now Left icon */}
                 </button>
@@ -846,7 +907,7 @@ const Editor: React.FC = () => {
                         onClick={handleUndo} 
                         disabled={historyIndex <= 0}
                         className={`p-1.5 rounded-md transition ${historyIndex > 0 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
-                        title="گەڕانەوە (Cmd+Z)"
+                        title="Undo (Cmd+Z)"
                     >
                         <Undo className="w-4 h-4 scale-x-[-1]" /> {/* Flipped horizontally */}
                     </button>
@@ -855,7 +916,7 @@ const Editor: React.FC = () => {
                         onClick={handleRedo}
                         disabled={historyIndex >= history.length - 1}
                         className={`p-1.5 rounded-md transition ${historyIndex < history.length - 1 ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-zinc-700 cursor-not-allowed'}`}
-                        title="هێنانەوە (Cmd+Shift+Z)"
+                        title="Redo (Cmd+Shift+Z)"
                     >
                         <Redo className="w-4 h-4 scale-x-[-1]" /> {/* Flipped horizontally */}
                     </button>
@@ -903,6 +964,7 @@ const Editor: React.FC = () => {
                                 isNovelMode={isNovelMode}
                                 projectMetadata={currentProject || {}}
                                 zoomLevel={zoom}
+                                sceneNumber={scene.number}
                              />
                         </div>
                     </div>
@@ -910,7 +972,7 @@ const Editor: React.FC = () => {
             </div>
         </div>
         
-        {/* Floating Formatting Toolbar */}
+        {/* Floating Formatting Toolbar - ONLY SHOW IF NOT NOVEL MODE */}
         {!isNovelMode && (
             <FormattingToolbar onFormat={applyFormat} activeFormat={activeFormat} />
         )}

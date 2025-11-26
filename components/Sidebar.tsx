@@ -190,6 +190,9 @@ const Sidebar: React.FC = () => {
                             </div>
                         ) : (
                             <div>
+                                <div className="text-xxs font-semibold text-zinc-500 uppercase px-2 mb-1">
+                                    {isNovel ? 'بەشەکان' : 'دیمەنەکان'}
+                                </div>
                                 {currentProject.scenes.map(scene => (
                                     <div 
                                         key={scene.id}

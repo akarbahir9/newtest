@@ -11,6 +11,14 @@ const GENRES = [
     "کورتە", "سلاشەر", "وەرزشی", "سیخوڕی", "ستیمپانک", "سوپەرهیرۆ", "هەستبزوێن", "جەنگ", "وێستێرن"
 ];
 
+const POV_OPTIONS = [
+    { value: "First Person POV", label: "کەسی یەکەم (من، ئێمە)" },
+    { value: "Second Person POV", label: "کەسی دووەم (تۆ)" },
+    { value: "Third Person Limited", label: "کەسی سێیەم (سنووردار)" },
+    { value: "Third Person Omniscient", label: "کەسی سێیەم (زانا بە هەموو شت)" },
+    { value: "Third Person Objective", label: "کەسی سێیەم (بابەتی/کامێرا)" }
+];
+
 const Settings: React.FC = () => {
   const { currentProject, updateProject } = useProject();
   
@@ -20,6 +28,7 @@ const Settings: React.FC = () => {
     theme: string;
     setting: string;
     protagonistGoal: string;
+    pov: string;
     genres: string[];
     targetMetadata: {
         durationMinutes?: number;
@@ -27,8 +36,6 @@ const Settings: React.FC = () => {
         totalSeasons?: number;
         episodesPerSeason?: number;
         episodeDuration?: number;
-        durationSeconds?: number;
-        platform?: string;
     }
   }>({
     title: '',
@@ -36,6 +43,7 @@ const Settings: React.FC = () => {
     theme: '',
     setting: '',
     protagonistGoal: '',
+    pov: '',
     genres: [],
     targetMetadata: {}
   });
@@ -48,6 +56,7 @@ const Settings: React.FC = () => {
         theme: currentProject.theme || '',
         setting: currentProject.setting || '',
         protagonistGoal: currentProject.protagonistGoal || '',
+        pov: currentProject.pov || '',
         genres: currentProject.genres || [],
         targetMetadata: currentProject.targetMetadata || {}
       });
@@ -58,7 +67,7 @@ const Settings: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleMetadataChange = (field: string, value: any) => {
+  const handleMetadataChange = (field: string, value: number) => {
       setFormData(prev => ({
           ...prev,
           targetMetadata: { ...prev.targetMetadata, [field]: value }
@@ -129,30 +138,6 @@ const Settings: React.FC = () => {
                   </div>
               )}
 
-              {currentProject.type === 'Advertising' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                          <label className="block text-xs text-zinc-500 mb-1">ماوە (چیرکە)</label>
-                          <input 
-                              type="number"
-                              value={formData.targetMetadata.durationSeconds || 30}
-                              onChange={(e) => handleMetadataChange('durationSeconds', parseInt(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs text-zinc-500 mb-1">پلاتفۆرم</label>
-                          <input 
-                              type="text"
-                              value={formData.targetMetadata.platform || ''}
-                              onChange={(e) => handleMetadataChange('platform', e.target.value)}
-                              placeholder="نموونە: Instagram Reels, TV"
-                              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
-                          />
-                      </div>
-                  </div>
-              )}
-
               {currentProject.type === 'Serial' && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
@@ -182,6 +167,23 @@ const Settings: React.FC = () => {
                               className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none" 
                           />
                       </div>
+                  </div>
+              )}
+
+              {/* POV Selector for Novels */}
+              {currentProject.type === 'Novel' && (
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">گۆشەنیگا (Point of View)</label>
+                    <select
+                        value={formData.pov}
+                        onChange={(e) => handleChange('pov', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:border-primary-500 outline-none"
+                    >
+                        <option value="">هەڵبژێرە...</option>
+                        {POV_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
                   </div>
               )}
               

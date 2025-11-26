@@ -15,6 +15,7 @@ const updateProjectTool: FunctionDeclaration = {
       theme: { type: Type.STRING },
       setting: { type: Type.STRING },
       protagonistGoal: { type: Type.STRING },
+      pov: { type: Type.STRING, description: "Point of View (e.g. First Person, Third Person Limited)" },
       genres: { type: Type.ARRAY, items: { type: Type.STRING } }
     }
   }
@@ -94,12 +95,12 @@ const createLocationTool: FunctionDeclaration = {
 
 const createSceneTool: FunctionDeclaration = {
   name: "create_scene",
-  description: "Create a new scene. You MUST provide valid HTML content using the screenplay classes.",
+  description: "Create a new scene or chapter. IMPORTANT: For Screenplays, content must be HTML with screenplay classes. For NOVELS, content must be standard HTML using <h1>, <p>, <em> tags for prose.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       title: { type: Type.STRING },
-      content: { type: Type.STRING, description: "Full HTML content with <div class='sp-slug'>...</div> etc." },
+      content: { type: Type.STRING, description: "Full HTML content. Screenplay: <div class='sp-slug'>...</div>. Novel: <h1>Chapter X</h1><p>...</p>" },
       summary: { type: Type.STRING }
     },
     required: ["title", "content"]
@@ -108,12 +109,12 @@ const createSceneTool: FunctionDeclaration = {
 
 const updateSceneTool: FunctionDeclaration = {
   name: "update_scene",
-  description: "Rewrite the content of a specific scene. Use this to change dialogue, action, or rewrite the whole scene based on user request. You MUST provide the FULL valid HTML content for the scene, maintaining the screenplay formatting classes (sp-slug, sp-action, sp-character, sp-dialogue, sp-parenthetical).",
+  description: "Rewrite the content of a specific scene or chapter. YOU MUST PROVIDE THE FULL VALID HTML CONTENT.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      sceneId: { type: Type.STRING, description: "The ID of the scene to update. Use 'current' for the active scene." },
-      content: { type: Type.STRING, description: "The full new HTML content of the scene." }
+      sceneId: { type: Type.STRING, description: "The ID of the scene/chapter to update." },
+      content: { type: Type.STRING, description: "The full new HTML content." }
     },
     required: ["sceneId", "content"]
   }
@@ -183,19 +184,20 @@ const updateBlueprintTool: FunctionDeclaration = {
 // --- NEW TOOLS FOR STORY CREATION ---
 const finalizeStoryTool: FunctionDeclaration = {
     name: "finalize_story_concept",
-    description: "Call this tool ONLY when you have gathered enough information (Title, Type, Genres, Logline, Structure, etc.) to create the story. This completes the interview.",
+    description: "Call this tool ONLY when you have gathered enough information (Title, Type, Genres, Logline, Structure, POV, etc.) to create the story. This completes the interview.",
     parameters: {
         type: Type.OBJECT,
         properties: {
             title: { type: Type.STRING },
-            type: { type: Type.STRING, enum: ['Screenplay', 'Novel', 'Serial', 'Advertising'] },
-            format: { type: Type.STRING, enum: ['Feature', 'Short', 'Episode', 'Standard', 'TV Commercial', 'Social Media', 'Radio Spot', 'Print'] },
+            type: { type: Type.STRING, enum: ['Screenplay', 'Novel', 'Serial'] },
+            format: { type: Type.STRING, enum: ['Feature', 'Short', 'Episode', 'Standard'] },
             genres: { type: Type.ARRAY, items: { type: Type.STRING } },
             logline: { type: Type.STRING },
             detailedStory: { type: Type.STRING, description: "A comprehensive summary of the story generated from the conversation." },
             theme: { type: Type.STRING },
             setting: { type: Type.STRING },
             protagonistGoal: { type: Type.STRING },
+            pov: { type: Type.STRING, description: "The selected Point of View for the story (e.g. First Person, Third Person Limited)." },
             targetMetadata: {
                 type: Type.OBJECT,
                 description: "Structural targets based on project type.",
@@ -204,9 +206,7 @@ const finalizeStoryTool: FunctionDeclaration = {
                     targetPageCount: { type: Type.NUMBER, description: "For Novels" },
                     totalSeasons: { type: Type.NUMBER, description: "For Serials/TV" },
                     episodesPerSeason: { type: Type.NUMBER, description: "For Serials/TV" },
-                    episodeDuration: { type: Type.NUMBER, description: "For Serials/TV (in minutes)" },
-                    durationSeconds: { type: Type.NUMBER, description: "For Ads (in seconds)" },
-                    platform: { type: Type.STRING, description: "For Ads (e.g. Instagram, TV)" }
+                    episodeDuration: { type: Type.NUMBER, description: "For Serials/TV (in minutes)" }
                 }
             },
             characters: { 
@@ -238,9 +238,48 @@ export const generateAssistantResponse = async (
     const model = 'gemini-2.5-flash';
     const safeContext = projectContext ? projectContext.slice(0, 100000) : '';
 
-    let systemInstruction = `You are Zoer, an advanced AI story assistant and Marketing Expert. You speak and write primarily in Kurdish (Sorani).
+    // Check Project Type from context to decide instructions
+    const isNovel = safeContext.includes('Type: Novel');
+    const povMatch = safeContext.match(/POV: (.*?)\n/);
+    const selectedPov = povMatch ? povMatch[1].trim() : "Third Person Limited";
+
+    let systemInstruction = `You are Zoer, an advanced AI story assistant. You speak and write primarily in Kurdish (Sorani).`;
+
+    if (isNovel) {
+        systemInstruction += `
+    
+    MODE: NOVEL / PROSE WRITING
+    SELECTED POINT OF VIEW (POV): ${selectedPov}
+    
+    POV RULES (CRITICAL):
+    - **First Person**: Use Kurdish pronouns like "Min" (من) and suffixes "-m" (م-). You are inside the head of the narrator.
+    - **Second Person**: Use Kurdish pronoun "To" (تۆ). Address the reader/protagonist directly.
+    - **Third Person**: Use Kurdish pronouns like "Ew" (ئەو).
+    - **Third Person Limited**: Stick strictly to ONE character's internal thoughts per scene.
+    - **Third Person Omniscient**: You know everything about everyone.
+    - **Third Person Objective**: Describe ONLY what is visible/audible (like a camera). No internal thoughts.
+
+    CRITICAL FORMATTING RULES FOR NOVELS:
+    1. When asked to write, rewrite, or generate chapter content, you MUST enclose the actual story text within <screenplay> and </screenplay> tags (using this tag for consistency, but the content will be prose).
+    2. Inside these tags, use STANDARD HTML for books/novels:
+       - Use <h1> for Chapter Titles.
+       - Use <p> for paragraphs.
+       - Use <em> for emphasis/thought.
+       - Use <strong> for strong emphasis.
+       - DO NOT use screenplay slugs (INT./EXT.) or screenplay classes (.sp-action).
+    
+    STYLE GUIDE:
+    - Write in engaging, descriptive prose in KURDISH (SORANI).
+    - Focus on internal monologue (if POV permits), sensory details, and show-dont-tell.
+    - Use Kurdish (Sorani) literary style suitable for novels.
+    - STRICTLY ADHERE TO THE SELECTED POV: ${selectedPov}.
+        `;
+    } else {
+        systemInstruction += `
+    
+    MODE: SCREENPLAY / SCRIPT WRITING
         
-    CRITICAL FORMATTING RULES:
+    CRITICAL FORMATTING RULES FOR SCREENPLAYS:
     1. When asked to write, rewrite, or generate scene content, you MUST enclose the actual screenplay text within <screenplay> and </screenplay> tags.
     2. Inside these tags, use HTML with the following classes for "Hollywood Standard" formatting (but with Kurdish Content):
        - <div class="sp-slug">NAW./DER. SHWÊN - KAT (ROJ/SHEW)</div> (Use Kurdish slugs: NAWEWE/DEREWE)
@@ -249,35 +288,45 @@ export const generateAssistantResponse = async (
        - <div class="sp-parenthetical">(wryly)</div>
        - <div class="sp-dialogue">Dialogue goes here.</div>
        - <div class="sp-transition">CUT TO:</div> (Use Kurdish Transition if appropriate, or English standard)
+    3. Keep your analysis, introduction, or appendix notes OUTSIDE the <screenplay> tags.
+        `;
+    }
     
+    systemInstruction += `
     CAPABILITIES:
     - You can update project metadata (title, logline, detailed story, etc.).
-    - You can CREATE new characters, locations, or scenes.
+    - You can CREATE new characters, locations, or scenes (Chapters).
     - You can BULK CREATE characters using 'bulk_create_characters'. Use this when the user asks to generate characters from the Plan/Blueprint, or if you analyze the Blueprint and see characters that don't exist in the database.
     - You can DELETE single items using 'delete_item' or multiple items using 'bulk_delete_items'. Always find the correct IDs from the context.
     - You can update character details.
-    - You can REWRITE specific scenes using the 'update_scene' tool.
+    - You can REWRITE specific scenes/chapters using the 'update_scene' tool.
     - You can Find & Replace text globally or locally using the 'find_replace' tool.
 
     MODES OF OPERATION:
     
-    A. PLANNING & CREATION:
+    A. GOAL MONITORING & PROGRESS CHECKING (CRITICAL):
+    - You are actively monitoring the project against the Blueprint Plan.
+    - The "CURRENT ACTIVE GOAL" is provided in the context.
+    - When you analyze the current scene content, compare it against the "CURRENT ACTIVE GOAL".
+    - IF the content fully satisfies the goal, you MUST explicitly tell the user: 
+      "✅ ئامانجەکە بەدەست هات: [Goal Description]. دەتوانیت کۆتایی بەم بەشە بهێنیت یان بچیتە بەشی داهاتوو." (Goal Reached).
+    - Be alert to "Page Targets" or "Word Counts" if provided. If a chapter seems too short for its target, suggest expanding.
+
+    B. PLANNING & CREATION:
     - Always check the "Plan/Blueprint" in the context. If the user asks to "populate characters" or "create characters from the plan", analyze the blueprint text and use 'bulk_create_characters' to add them all at once.
-    - If the project type is 'Advertising', act as a Copywriter and Sales Expert. Focus on Hook, USP, and CTA.
     
-    B. DELETION (CRITICAL):
+    C. DELETION (CRITICAL):
     - You have tools to delete items: 'delete_item' (single) and 'bulk_delete_items' (multiple).
     - You MUST retrieve the specific 'id' (UUID) of the item(s) from the provided Context Memory sections (=== CHARACTERS ===, etc).
     - If the user says "delete characters" (implying all) or "delete [Name] and [Name]", you MUST extract the IDs for ALL matched items and use 'bulk_delete_items'.
     - If the user says "delete [Name]", find the ID associated with [Name] and use 'delete_item'.
     - NEVER reply with just text like "I will delete them" when a tool is available. You MUST call the tool.
-    - If the user says "remove X", they mean delete.
 
-    C. EDITING & UPDATING:
+    D. EDITING & UPDATING:
     - If the user asks to "change X to Y" in the whole script, use 'find_replace' with scope='project'.
     - If the user asks to rewrite the current scene or change specific dialogue/action in it, generate the NEW full HTML for the scene and use 'update_scene'.
 
-    D. GENERAL CHAT & ANALYSIS:
+    E. GENERAL CHAT & ANALYSIS:
     If the user asks for information, summaries, or character analysis:
     - Use **Markdown** for formatting.
     - Be concise and visually clean.
@@ -343,49 +392,49 @@ export const generateStoryBuilderChat = async (
     finalData?: any 
 }> => {
     try {
-        const systemInstruction = `You are Zoer's Creative Consultant and Marketing Strategist. You speak in Kurdish (Sorani).
+        const systemInstruction = `You are Zoer's Creative Consultant. You speak in Kurdish (Sorani).
         
-        GOAL: Interview the user to build a complete concept for a new Story (Screenplay, Novel, Series, or Advertisement).
+        GOAL: Interview the user to build a complete concept for a new Story (Screenplay, Novel, or Series).
         
         PROCESS:
         1. Ask questions one by one. Do not overwhelm the user.
-        2. When asking about categorical things (Genre, Tone, Setting, Protagonist Archetype, Theme), you MUST provide a list of creative options in the JSON response.
+        2. When asking about categorical things (Genre, Tone, Setting, Protagonist Archetype, Theme), you MUST provide a list of creative options in the JSON response in KURDISH.
         3. Be smart: Use the context of previous answers to generate better options.
-        4. **CRITICAL - STRUCTURAL QUESTIONS:**
-           - If the user chooses 'Serial' (Series), you MUST ask about: Number of Seasons, Episodes per Season, and Episode Duration. Give options (e.g., "8 Episodes", "10 Episodes", "22 Episodes").
-           - If the user chooses 'Screenplay' (Movie), you MUST ask about the approximate duration (e.g., "90 mins", "110 mins", "120 mins").
+        4. **CRITICAL - STRUCTURAL & FORMATTING QUESTIONS:**
+           - If the user chooses 'Serial' (Series), you MUST ask about: Number of Seasons, Episodes per Season, and Episode Duration. Give options.
+           - If the user chooses 'Screenplay' (Movie), you MUST ask about the approximate duration.
            - If the user chooses 'Novel', you MUST ask about the target page count.
-           - If the user chooses 'Advertising', you MUST act as a Sales Expert. Ask about:
-             a. Product/Service Name & Category.
-             b. Target Audience (Demographics/Psychographics).
-             c. Unique Selling Proposition (USP) / Key Benefit.
-             d. Platform (TV, Instagram, YouTube, Radio).
-             e. Call to Action (CTA).
-             f. Duration (e.g., 15s, 30s, 60s).
-        5. Once you have enough info, call the 'finalize_story_concept' tool.
+           - **IF THE PROJECT IS A NOVEL:** You MUST ask about the "Point of View" (POV). 
+             You MUST offer these 5 options (Translate them to Kurdish Sorani for the user):
+             1. کەسی یەکەم - First Person (من)
+             2. کەسی دووەم - Second Person (تۆ)
+             3. کەسی سێیەم ( سنووردار) - Third Person Limited
+             4. کەسی سێیەم (زانا بە هەموو شت) - Third Person Omniscient
+             5. کەسی سێیەم (بابەتی/کامێرا) - Third Person Objective
+        5. Once you have enough info (Title, Type, Logline, Structure/Metadata, POV if novel, characters, setting), call the 'finalize_story_concept' tool.
         
         OUTPUT FORMAT (STRICT JSON):
         Unless calling a tool, you MUST output a JSON object with this structure:
         {
              "message": "The text of your question or response in Kurdish. Use Markdown for bolding.",
-             "options": ["Option 1", "Option 2", ...], // REQUIRED when asking a question that can have options.
+             "options": ["Option 1", "Option 2", ...], // REQUIRED when asking a question that can have options. Provide options in KURDISH.
              "multiSelect": boolean // True if multiple options can be picked (Genre), False for single (Type, Tone).
         }
         
         IMPORTANT: 
         - DO NOT output Markdown code blocks like \`\`\`json. Just output the raw JSON object.
         - DO NOT include the "message" inside the "options" or vice versa.
-        - The "message" field MUST contain the human readable question/text.
+        - The "message" field MUST contain the human readable question/text in Kurdish.
         
         EXAMPLES:
         User: "I want a horror movie."
         Assistant: {
-           "message": "Great! What sub-genre of horror fits best?",
-           "options": ["Psychological Horror", "Slasher", "Supernatural", "Found Footage", "Body Horror"],
+           "message": "نایابە! چ جۆرە ترسناکێکت دەوێت؟",
+           "options": ["ترسناکی دەروونی", "سلاشەر", "خەیاڵی", "فۆتێجی دۆزراوە", "ترسناکی جەستەیی"],
            "multiSelect": false
         }
         
-        TONE: Enthusiastic, creative, professional, and strategic (if Advertising).
+        TONE: Enthusiastic, creative, helpful, professional.
         `;
 
         const chat = ai.chats.create({
@@ -408,7 +457,7 @@ export const generateStoryBuilderChat = async (
             for (const part of candidate.content.parts) {
                 if (part.functionCall && part.functionCall.name === 'finalize_story_concept') {
                     finalData = part.functionCall.args;
-                    responseJson = { message: "زانیارییەکانم وەرگرت. پڕۆژەکەت ئامادە دەکرێت..." };
+                    responseJson = { message: "زانیارییەکانم وەرگرت. چیرۆکەکەت ئامادە دەکرێت..." };
                 } else if (part.text) {
                     try {
                         let text = part.text.trim();
@@ -551,7 +600,10 @@ export const generateAutocomplete = async (
       logline?: string,
       characters?: string,
       setting?: string,
-      goal?: string
+      goal?: string, // Overall goal (protagonist goal)
+      pov?: string,
+      sceneGoal?: string, // Specific scene/chapter goal from blueprint
+      pageTarget?: string // Specific length target
   }
 ): Promise<string> => {
   try {
@@ -560,24 +612,34 @@ export const generateAutocomplete = async (
     const isTrailingSpace = cleanText.endsWith(' ');
     const textSlice = cleanText.slice(-1200) || "سەرەتای چیرۆکەکە";
 
+    // Detect if we are in Novel Mode based on context type
+    const isNovel = context.type === 'Novel';
+    const povInstruction = context.pov ? `POINT OF VIEW: ${context.pov}` : '';
+
     const prompt = `You are a creative writing assistant for Kurdish (Sorani).
     TASK: Continue the story text naturally.
+    
+    TYPE: ${isNovel ? 'NOVEL / PROSE' : 'SCREENPLAY'}
+    ${povInstruction}
     CONTEXT:
-    Type: ${context.type}
     Genre: ${context.genre}
     Style: ${context.style}
-    Current Scene Goal: ${context.goal || 'Advance the plot'}
     
-    IF ADVERTISING: Focus on persuasive, punchy copy, visual cues, and strong calls to action.
-    IF NARRATIVE: Focus on story flow, dialogue, and action.
-
+    CRITICAL GOALS:
+    - Current Scene Goal: ${context.sceneGoal || 'Advance the plot'}
+    - Length Target: ${context.pageTarget || 'Standard'}
+    - Overall Goal: ${context.goal}
+    
     INPUT TEXT (End of current scene):
     "${textSlice}"
+    
     INSTRUCTIONS:
     1. Generate the immediate next 3-10 words in Kurdish (Sorani).
     2. Maintain the tone and style of the input.
-    3. Do NOT repeat the last word of the input.
-    4. Return ONLY the completion text. No explanations.
+    3. STEER the content towards achieving the "Current Scene Goal".
+    ${isNovel ? '4. Write in DESCRIPTIVE PROSE using Kurdish pronouns correctly. Do not write screenplay instructions.' : '4. Write in Screenplay format (Action or Dialogue).'}
+    5. Do NOT repeat the last word of the input.
+    6. Return ONLY the completion text. No explanations.
     `;
 
     const response = await ai.models.generateContent({
@@ -647,11 +709,11 @@ export const generateStoryPlanChat = async (
         
         PROJECT DATA (READ DEEPLY):
         Title: ${projectContext.title}
-        Type: ${projectContext.type}
         Logline: ${projectContext.logline}
         Theme: ${projectContext.theme}
         Protagonist Goal: ${projectContext.protagonistGoal}
         Detailed Story: ${projectContext.detailedStory}
+        POV: ${projectContext.pov || "Not specified"}
         
         FULL CHARACTER ROSTER:
         ${charList}
@@ -659,21 +721,22 @@ export const generateStoryPlanChat = async (
         CURRENT BLUEPRINT:
         ${currentPlan || "(Empty)"}
         
-        INSTRUCTIONS:
-        1. **MULTI-THREADING:** Do not just write one story. Create an A-Story (Protagonist), a B-Story (Relationship/Theme), and a C-Story (Subplot/Comedic/World).
-        2. **CHARACTER ARCS:** Every major character needs an arc. If the user asks to create a plan, define the Starting Point vs Ending Point for the protagonist.
-        3. **DEEP CONNECTION:** Link the characters together. How does the Antagonist exploit the Protagonist's specific flaw?
+        CRITICAL RULES FOR PLAN GENERATION (MUST FOLLOW):
+        1. **LENGTH TARGETS:** You MUST assign a specific Length Target for every Chapter or Episode. 
+           - Format: "## Chapter X [Page Target: 10]" or "## Episode X [Duration: 45 min]".
+        2. **GOAL ORIENTED:** You MUST assign a specific Narrative Goal for every Scene, Chapter, or Episode.
+           - **YOU MUST USE THIS EXACT FORMAT**: [Goal: Describe what needs to happen/change in this unit].
+           - Examples:
+             - "## Chapter 1 [Page Target: 10] [Goal: Introduce hero and flaw]"
+             - "### Scene 3 [Goal: The inciting incident happens]"
+        3. **MULTI-THREADING:** Do not just write one story. Create an A-Story (Protagonist), a B-Story (Relationship/Theme), and a C-Story (Subplot/Comedic/World).
         4. **STRUCTURE:** 
            - Use standard structures (Save the Cat, Hero's Journey) but adapt them creatively.
            - Break down into Acts -> Sequences -> Scenes.
-        5. **IF ADVERTISING:**
-           - Create a Shot List or Storyboard breakdown.
-           - Focus on the Visual Hook, The Problem, The Solution (Product), and The CTA.
-           - Use concise headers like "Scene 1: The Struggle", "Scene 2: The Product Reveal".
-        6. **FORMATTING:** Use robust Markdown.
+        5. **FORMATTING:** Use robust Markdown.
            - # Act I
-           - ## Sequence A: The Status Quo
-           - ### Scene 1: [Name]
+           - ## Chapter 1 [Page Target: 12] [Goal: Establish normal world]
+           - ### Scene 1 [Goal: Show the flaw in action]
            - > *Thematic Note: Why this scene matters.*
         
         BEHAVIOR:

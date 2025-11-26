@@ -1,7 +1,6 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown, WifiOff, Database, MessageSquare, Sparkles, Send, Play, Edit2, Megaphone } from 'lucide-react';
+import { FileText, Clock, Users, Book, ChevronLeft, Plus, Trash2, AlertTriangle, X, Clapperboard, Tv, Upload, Download, FileDown, WifiOff, Database, MessageSquare, Sparkles, Send, Play, Edit2 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Project, ProjectType, ProjectFormat, Story, ChatMessage } from '../types';
 import { PDFDocument, rgb } from 'pdf-lib';
@@ -558,16 +557,8 @@ const Dashboard: React.FC = () => {
                         >
                             <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-lg ${
-                                        project.type === 'Screenplay' ? 'bg-primary-900/20 text-primary-400' : 
-                                        project.type === 'Serial' ? 'bg-purple-900/20 text-purple-400' : 
-                                        project.type === 'Advertising' ? 'bg-amber-900/20 text-amber-400' :
-                                        'bg-zinc-800 text-zinc-400'
-                                    } flex items-center justify-center border border-white/5`}>
-                                        {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : 
-                                         project.type === 'Serial' ? <Tv className="w-5 h-5" /> : 
-                                         project.type === 'Advertising' ? <Megaphone className="w-5 h-5" /> :
-                                         <Book className="w-5 h-5" />}
+                                    <div className={`w-10 h-10 rounded-lg ${project.type === 'Screenplay' ? 'bg-primary-900/20 text-primary-400' : project.type === 'Serial' ? 'bg-purple-900/20 text-purple-400' : 'bg-zinc-800 text-zinc-400'} flex items-center justify-center border border-white/5`}>
+                                        {project.type === 'Screenplay' ? <Clapperboard className="w-5 h-5" /> : project.type === 'Serial' ? <Tv className="w-5 h-5" /> : <Book className="w-5 h-5" />}
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-bold text-zinc-200 group-hover:text-white line-clamp-1 leading-tight">{project.title}</h3>

@@ -17,7 +17,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=JetBrains+Mono:wght@400;500&family=Noto+Kufi+Arabic:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=JetBrains+Mono:wght@400;500&family=Noto+Kufi+Arabic:wght@100..900&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -27,6 +27,7 @@
                         sans: ['Noto Kufi Arabic', 'sans-serif'],
                         mono: ['Noto Kufi Arabic', 'monospace'], 
                         screenplay: ['Noto Kufi Arabic', 'sans-serif'],
+                        novel: ['Merriweather', 'Noto Kufi Arabic', 'serif'],
                     },
                     colors: {
                         zinc: { 850: '#1f1f22', 925: '#101012', 950: '#09090b' },
@@ -83,6 +84,40 @@
         .sp-parenthetical { text-align: center; width: 50%; margin: 0 auto; font-size: 0.9em; color: #a1a1aa; }
         .sp-transition { text-align: left; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 1.5rem; color: #e4e4e7; }
         
+        /* Novel Formatting Classes */
+        .novel-content p {
+            margin-bottom: 0.5rem;
+            line-height: 1.8;
+            text-align: justify;
+            text-indent: 1.5em;
+            color: #e4e4e7;
+        }
+        .novel-content p:first-of-type {
+            text-indent: 0;
+        }
+        .novel-content h1 {
+            font-size: 2em;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+        .novel-content h2 {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: #e4e4e7;
+        }
+        .novel-content blockquote {
+            border-right: 2px solid #6366f1;
+            padding-right: 1rem;
+            margin: 1.5rem 0;
+            font-style: italic;
+            color: #a1a1aa;
+        }
+
         /* Ghost Text Animation */
         @keyframes ghost-pulse { 0% { opacity: 0.4; } 50% { opacity: 0.65; } 100% { opacity: 0.4; } }
         .ai-ghost { color: #818cf8; animation: ghost-pulse 2.5s infinite ease-in-out; }

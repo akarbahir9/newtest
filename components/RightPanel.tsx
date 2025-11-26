@@ -1,8 +1,10 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, PanelLeft, Loader2, RotateCcw
+  FileCheck, Replace, PanelLeft, Loader2, RotateCcw, Target, Scale
 } from 'lucide-react';
 import { generateAssistantResponse, generateStoryboardImage } from '../services/geminiService';
 import { ChatMessage, Character } from '../types';
@@ -15,6 +17,44 @@ const generateId = () => {
     }
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
+
+// --- Blueprint Parser Helper ---
+const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: string, type: string) => {
+    if (!blueprint) return { goal: null, target: null, planTitle: null };
+    
+    let goal = null;
+    let target = null;
+    let planTitle = null;
+    
+    // Robust Regex to find the SECTION in the plan
+    // Logic: Look for "## Chapter N" or "### Scene N"
+    // Then capture everything UNTIL the next header "##" or "###"
+    // This allows us to search for the [Goal] tag anywhere within that block (even next lines)
+    
+    // 1. Find the start of the section
+    const headerPattern = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
+    
+    const match = blueprint.match(headerPattern);
+    
+    if (match) {
+        // match[0] is the full text of the section
+        // match[2] is the title on the header line
+        const sectionContent = match[0];
+        planTitle = match[2].trim().replace(/\[.*?\]/g, '').trim(); // Clean title from tags
+        
+        // Extract Goal (Flexible formats: **Goal:**, [Goal: ...], Goal: ...)
+        // We search within the entire section content
+        const goalMatch = sectionContent.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        if (goalMatch && goalMatch[1]) goal = goalMatch[1].trim();
+        
+        // Extract Target (Flexible formats: [Page Target: ...], Target: ..., Length: ..., Word Count: ...)
+        const targetMatch = sectionContent.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        if (targetMatch && targetMatch[1]) target = targetMatch[1].trim();
+    }
+    
+    return { goal, target, planTitle };
+};
+
 
 // --- Markdown Parser Helper ---
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
@@ -111,6 +151,11 @@ const RightPanel: React.FC = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isImageLoading, setIsImageLoading] = useState(false);
 
+  // Goal State
+  const [activeGoal, setActiveGoal] = useState<string | null>(null);
+  const [activeTarget, setActiveTarget] = useState<string | null>(null);
+  const [planTitle, setPlanTitle] = useState<string | null>(null);
+
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   
   // Use messages from current project
@@ -127,6 +172,21 @@ const RightPanel: React.FC = () => {
     // Reset image when scene changes
     setGeneratedImage(null);
   }, [currentSceneId]);
+
+  // GOAL EXTRACTION EFFECT
+  useEffect(() => {
+      if (currentProject && scene) {
+          const { goal, target, planTitle } = extractGoalAndTarget(
+              currentProject.blueprint || '', 
+              scene.number, 
+              scene.title, 
+              currentProject.type
+          );
+          setActiveGoal(goal);
+          setActiveTarget(target);
+          setPlanTitle(planTitle);
+      }
+  }, [currentProject?.blueprint, scene?.id, scene?.number]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -178,10 +238,16 @@ const RightPanel: React.FC = () => {
         Theme: ${currentProject?.theme || 'N/A'}
         Setting: ${currentProject?.setting || 'N/A'}
         Protagonist Goal: ${currentProject?.protagonistGoal || 'N/A'}
+        POV: ${currentProject?.pov || 'N/A'}
         
         === PLAN / BLUEPRINT ===
         ${currentProject?.blueprint || 'No plan defined.'}
         
+        === CURRENT ACTIVE GOAL (Extracted from Plan) ===
+        Matched Plan Section: ${planTitle || 'Unknown'}
+        Goal: ${activeGoal || 'None detected'}
+        Length Target: ${activeTarget || 'None detected'}
+
         === CHARACTERS (IDs are UUIDs) ===
         ${charDetails || 'No characters defined.'}
         
@@ -212,8 +278,6 @@ const RightPanel: React.FC = () => {
         
         // Reconstruct history for API from current project state + new message
         const currentHistory = currentProject.chatHistory || [];
-        // Important: Ensure we don't duplicate the message if the context update was fast, 
-        // though typically addChatMessage is sync enough for React state updates in next render cycle.
         const apiHistory = [...currentHistory, userMsg].map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
@@ -225,35 +289,19 @@ const RightPanel: React.FC = () => {
             contextString
         );
         
-        // Handle Tool Calls
+        // Handle Tool Calls (Logic remains same as before)
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (const call of response.toolCalls) {
                 if (call.name === 'update_project_metadata') {
                     updateProject(projectId, call.args);
-                    const confirmMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: "✅ زانیارییەکانی پڕۆژە نوێکرانەوە."
-                    };
-                    addChatMessage(projectId, confirmMsg);
-
+                    addChatMessage(projectId, { id: generateId(), role: 'model', text: "✅ زانیارییەکانی پڕۆژە نوێکرانەوە." });
                 } else if (call.name === 'update_character') {
                      const existing = currentProject.characters.find(c => c.id === call.args.id);
                      if (existing) {
-                         const updatedChar: Character = {
-                             ...existing,
-                             ...call.args,
-                             traits: call.args.traits || existing.traits
-                         };
+                         const updatedChar: Character = { ...existing, ...call.args, traits: call.args.traits || existing.traits };
                          updateCharacter(updatedChar);
-                         const confirmMsg: ChatMessage = {
-                            id: generateId(),
-                            role: 'model',
-                            text: `✅ کاراکتەری ${updatedChar.name} نوێکرایەوە.`
-                        };
-                        addChatMessage(projectId, confirmMsg);
+                         addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ کاراکتەری ${updatedChar.name} نوێکرایەوە.` });
                      }
-
                 } else if (call.name === 'create_character') {
                      addCharacter({
                         name: call.args.name,
@@ -262,13 +310,7 @@ const RightPanel: React.FC = () => {
                         description: call.args.description || '',
                         traits: call.args.traits || []
                      });
-                     const confirmMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `✅ کاراکتەری نوێ "${call.args.name}" دروستکرا.`
-                    };
-                    addChatMessage(projectId, confirmMsg);
-
+                     addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ کاراکتەری نوێ "${call.args.name}" دروستکرا.` });
                 } else if (call.name === 'bulk_create_characters') {
                      const chars = call.args.characters || [];
                      for (const c of chars) {
@@ -280,57 +322,31 @@ const RightPanel: React.FC = () => {
                              traits: c.traits || []
                          });
                      }
-                     const confirmMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `✅ ${chars.length} کاراکتەر لەسەر بنەمای پلانەکە دروستکران.`
-                    };
-                    addChatMessage(projectId, confirmMsg);
-
+                     addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ ${chars.length} کاراکتەر لەسەر بنەمای پلانەکە دروستکران.` });
                 } else if (call.name === 'create_location') {
                      addLocation({
                         name: call.args.name,
                         type: call.args.type || 'MIXED',
                         description: call.args.description || ''
                      });
-                     const confirmMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `✅ شوێنی نوێ "${call.args.name}" دروستکرا.`
-                    };
-                    addChatMessage(projectId, confirmMsg);
-
+                     addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ شوێنی نوێ "${call.args.name}" دروستکرا.` });
                 } else if (call.name === 'create_scene') {
                      addScene(undefined, {
                          title: call.args.title,
                          content: call.args.content,
                          summary: call.args.summary
                      });
-                     const confirmMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `✅ دیمەنی نوێ "${call.args.title}" زیادکرا بۆ پڕۆژەکە.`
-                    };
-                    addChatMessage(projectId, confirmMsg);
-
+                     addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ دیمەنی نوێ "${call.args.title}" زیادکرا بۆ پڕۆژەکە.` });
                 } else if (call.name === 'update_scene') {
                     let targetId = call.args.sceneId;
                     if (targetId === 'current' || !targetId) targetId = currentSceneId;
-                    
                     if (targetId) {
                         updateSceneContent(targetId, call.args.content);
-                        const confirmMsg: ChatMessage = {
-                           id: generateId(),
-                           role: 'model',
-                           text: `✅ دیمەنەکە نوێکرایەوە.`
-                       };
-                       addChatMessage(projectId, confirmMsg);
+                        addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ دیمەنەکە نوێکرایەوە.` });
                     }
-
                 } else if (call.name === 'delete_item') {
                     const { id, type } = call.args;
                     let itemName = 'item';
-                    
                     if (type === 'character') itemName = currentProject.characters.find(c => c.id === id)?.name || 'Character';
                     if (type === 'location') itemName = currentProject.locations.find(l => l.id === id)?.name || 'Location';
                     if (type === 'scene') itemName = currentProject.scenes.find(s => s.id === id)?.title || 'Scene';
@@ -339,93 +355,38 @@ const RightPanel: React.FC = () => {
                          if (type === 'character') deleteCharacter(id);
                          if (type === 'location') deleteLocation(id);
                          if (type === 'scene') deleteScene(id);
-                         
-                         const confirmMsg: ChatMessage = {
-                            id: generateId(),
-                            role: 'model',
-                            text: `✅ ${itemName} سڕایەوە.`
-                        };
-                        addChatMessage(projectId, confirmMsg);
+                         addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ ${itemName} سڕایەوە.` });
                     });
-                    
-                    const tempMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `⚠️ داوای ڕەزامەندی سڕینەوەی "${itemName}" دەکەم...`
-                    };
-                    addChatMessage(projectId, tempMsg);
+                    addChatMessage(projectId, { id: generateId(), role: 'model', text: `⚠️ داوای ڕەزامەندی سڕینەوەی "${itemName}" دەکەم...` });
 
                 } else if (call.name === 'bulk_delete_items') {
                     const items: {id: string, type: 'character' | 'location' | 'scene'}[] = call.args.items || [];
-                    
                     if (items.length === 0) {
-                        const failMsg: ChatMessage = {
-                            id: generateId(),
-                            role: 'model',
-                            text: `⚠️ هیچ ئایتمێک نەدۆزرایەوە بۆ سڕینەوە.`
-                        };
-                        addChatMessage(projectId, failMsg);
-                        return; // Continue loop if there are other calls, but return here avoids error
+                        addChatMessage(projectId, { id: generateId(), role: 'model', text: `⚠️ هیچ ئایتمێک نەدۆزرایەوە بۆ سڕینەوە.` });
+                    } else {
+                        showConfirmation(`ئایا دڵنیایت دەتەوێت ${items.length} ئایتم بەیەکەوە بسڕیتەوە؟`, () => {
+                             bulkDeleteItems(items);
+                             addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ ${items.length} ئایتم بە سەرکەوتوویی سڕانەوە.` });
+                        });
+                        addChatMessage(projectId, { id: generateId(), role: 'model', text: `⚠️ داوای ڕەزامەندی سڕینەوەی ${items.length} ئایتم دەکەم...` });
                     }
-
-                    // Count items for the message
-                    const counts = { character: 0, location: 0, scene: 0 };
-                    items.forEach(i => counts[i.type]++);
-                    
-                    const summaryParts = [];
-                    if (counts.character > 0) summaryParts.push(`${counts.character} کاراکتەر`);
-                    if (counts.location > 0) summaryParts.push(`${counts.location} شوێن`);
-                    if (counts.scene > 0) summaryParts.push(`${counts.scene} دیمەن`);
-                    
-                    const summaryText = summaryParts.join(' و ');
-
-                    showConfirmation(`ئایا دڵنیایت دەتەوێت ${items.length} ئایتم (${summaryText}) بەیەکەوە بسڕیتەوە؟`, () => {
-                         bulkDeleteItems(items);
-                         
-                         const confirmMsg: ChatMessage = {
-                            id: generateId(),
-                            role: 'model',
-                            text: `✅ ${items.length} ئایتم بە سەرکەوتوویی سڕانەوە.`
-                        };
-                        addChatMessage(projectId, confirmMsg);
-                    });
-                    
-                    const tempMsg: ChatMessage = {
-                        id: generateId(),
-                        role: 'model',
-                        text: `⚠️ داوای ڕەزامەندی سڕینەوەی ${items.length} ئایتم دەکەم...`
-                    };
-                    addChatMessage(projectId, tempMsg);
 
                 } else if (call.name === 'find_replace') {
                     const { search, replace, scope } = call.args;
                     if (scope === 'project') {
                         replaceTextInProject(currentProject.id, search, replace);
-                        const confirmMsg: ChatMessage = {
-                           id: generateId(),
-                           role: 'model',
-                           text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لە هەموو پڕۆژەکەدا.`
-                       };
-                       addChatMessage(projectId, confirmMsg);
+                        addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لە هەموو پڕۆژەکەدا.` });
                     } else {
-                        // Scene Scope
                         if (scene) {
                              const newContent = scene.content.split(search).join(replace);
                              updateSceneContent(scene.id, newContent);
-                             const confirmMsg: ChatMessage = {
-                                id: generateId(),
-                                role: 'model',
-                                text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لەم دیمەنەدا.`
-                            };
-                            addChatMessage(projectId, confirmMsg);
+                             addChatMessage(projectId, { id: generateId(), role: 'model', text: `✅ "${search}" گۆڕدرا بۆ "${replace}" لەم دیمەنەدا.` });
                         }
                     }
                 }
             }
         }
         
-        // Only add text response if it exists and isn't just the default "processing" text when tool was called
-        // or if it provides additional context.
         if (response.text && (!response.toolCalls || response.text.length > 30)) {
             const modelMsg: ChatMessage = {
               id: generateId(),
@@ -462,7 +423,7 @@ const RightPanel: React.FC = () => {
       } else {
           switch (type) {
               case 'check':
-                  prompt = "Check this entire scene for pacing, structure, and character voice issues. Suggest improvements in Kurdish (Sorani).";
+                  prompt = "Check this entire scene. Compare it against the BLUEPRINT GOAL. Is the goal achieved? Is the pacing right? Suggest improvements.";
                   break;
               case 'fix':
                   prompt = "Rewrite the dialogue in this entire scene to be punchier in Kurdish (Sorani). Wrap the result in <screenplay> tags.";
@@ -488,7 +449,6 @@ const RightPanel: React.FC = () => {
       const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
       
       let finalContent = scene.content;
-      
       if (!cleanContent.startsWith('<div') && !cleanContent.startsWith('<p')) {
           if (currentProject?.type === 'Novel') {
               finalContent += `<p>${cleanContent}</p>`;
@@ -498,15 +458,11 @@ const RightPanel: React.FC = () => {
       } else {
           finalContent += cleanContent;
       }
-
       updateSceneContent(scene.id, finalContent);
   };
 
   const handleReplace = (contentToInsert: string) => {
     if (!scene || !contentToInsert) return;
-    
-    // We don't use confirm dialog here if user manually clicks, or maybe we do.
-    // The previous implementation had confirmation.
     const cleanContent = contentToInsert.replace(/<\/?screenplay>/g, '');
     updateSceneContent(scene.id, cleanContent);
   };
@@ -597,19 +553,29 @@ const RightPanel: React.FC = () => {
       {/* CONTENT: ASSISTANT */}
       {activeTab === 'assistant' && (
         <>
-            {/* Fixed Context Header */}
+            {/* GOAL TRACKER (NEW) */}
             <div className="p-4 pb-0 flex-shrink-0 z-10 bg-zinc-925">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                    <span className="text-xxs font-semibold text-zinc-500 uppercase">دۆخی ئێستا</span>
-                    <span className="text-xxs text-emerald-500 flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> چالاک</span>
+                        <span className="text-xxs font-semibold text-zinc-500 uppercase flex items-center gap-1 truncate max-w-[70%]">
+                            <Target className="w-3 h-3 flex-shrink-0" />
+                            {planTitle ? `ئامانجی: ${planTitle}` : 'ئامانجی ئەم بەشە'}
+                        </span>
+                        {activeTarget && (
+                            <span className="text-xxs text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 whitespace-nowrap">
+                                <Scale className="w-2.5 h-2.5" /> {activeTarget}
+                            </span>
+                        )}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                    <span className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">دیمەنی {scene?.number || '?' }</span>
-                    {currentProject?.characters.slice(0, 2).map(c => (
-                        <span key={c.id} className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700 text-xxs text-zinc-300">{c.name}</span>
-                    ))}
-                    </div>
+                    {activeGoal ? (
+                        <p className="text-xs text-zinc-300 leading-relaxed font-medium border-l-2 border-primary-500 pl-2">
+                            {activeGoal}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-zinc-600 italic">
+                            هیچ ئامانجێک لە پلانەکەدا نەدۆزرایەوە بۆ ئەم بەشە.
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -633,18 +599,7 @@ const RightPanel: React.FC = () => {
                             <div className="text-sm text-zinc-300 bg-zinc-800/50 p-2 rounded-lg inline-block">{msg.text}</div>
                         ) : (
                             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative shadow-sm">
-                            {msg.hasContradiction && (
-                                <div className="flex items-start gap-2 mb-2 text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
-                                <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
-                                <div>
-                                    <span className="font-medium block mb-0.5">ناکۆکی دۆزرایەوە</span>
-                                    <span className="opacity-80">لە دیمەنی ٠٠١، ئاریا دەستی شکا. لێرە هەردوو دەستی بەکاردەهێنێت.</span>
-                                </div>
-                                </div>
-                            )}
-                            
                             {renderMessageContent(msg.text)}
-                            
                             </div>
                         )}
                         </div>
@@ -673,7 +628,7 @@ const RightPanel: React.FC = () => {
                         className="flex flex-row items-center gap-2 p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded transition group text-right"
                     >
                         <FileCheck className="w-3 h-3 text-orange-500 group-hover:text-orange-400 flex-shrink-0" />
-                        <span className="text-[10px] font-medium text-zinc-300">پشکنین</span>
+                        <span className="text-[10px] font-medium text-zinc-300">پشکنینی ئامانج</span>
                     </button>
                     <button 
                         onMouseDown={(e) => e.preventDefault()}

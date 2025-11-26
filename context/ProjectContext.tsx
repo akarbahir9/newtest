@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage, Relationship, Story, StoryData } from '../types';
 import { supabase } from '../lib/supabase';
@@ -43,7 +41,7 @@ interface ProjectContextType {
       type: ProjectType, 
       format: ProjectFormat,
       genres: string[], 
-      metadata: { logline: string, detailedStory: string, blueprint?: string, theme: string, setting: string, protagonistGoal: string, targetMetadata?: any },
+      metadata: { logline: string, detailedStory: string, blueprint?: string, theme: string, setting: string, protagonistGoal: string, pov?: string, targetMetadata?: any },
       sourceStoryId?: string,
       initialCharacters?: any[]
   ) => Promise<string | null>;
@@ -167,9 +165,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             theme: p.theme,
             setting: p.setting,
             protagonistGoal: p.protagonist_goal,
+            pov: p.target_metadata?.pov || p.pov,
             targetMetadata: p.target_metadata,
             sourceStoryId: p.source_story_id,
-            planChatHistory: p.plan_chat_history || [], // Load Plan Chat
+            planChatHistory: p.plan_chat_history || [],
             
             scenes: (p.scenes || []).map((s: any) => ({
                 id: s.id,
@@ -296,13 +295,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const theme = structuredData.theme || '';
       const setting = structuredData.setting || '';
       const protagonistGoal = structuredData.protagonistGoal || '';
+      const pov = structuredData.pov || '';
       const targetMetadata = structuredData.targetMetadata || {};
       
       const blueprint = ''; 
 
       await addProject(
           title, type, format, genres,
-          { logline, detailedStory, blueprint, theme, setting, protagonistGoal, targetMetadata },
+          { logline, detailedStory, blueprint, theme, setting, protagonistGoal, pov, targetMetadata },
           story.id,
           [] 
       );
@@ -313,16 +313,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       type: ProjectType, 
       format: ProjectFormat, 
       genres: string[], 
-      metadata: { logline: string, detailedStory: string, blueprint?: string, theme: string, setting: string, protagonistGoal: string, targetMetadata?: any },
+      metadata: { logline: string, detailedStory: string, blueprint?: string, theme: string, setting: string, protagonistGoal: string, pov?: string, targetMetadata?: any },
       sourceStoryId?: string,
       initialCharacters?: any[]
   ): Promise<string | null> => {
     try {
-        let defaultMetadata = {};
-        if (type === 'Screenplay') defaultMetadata = { durationMinutes: 110 };
-        else if (type === 'Novel') defaultMetadata = { targetPageCount: 300 };
-        else if (type === 'Serial') defaultMetadata = { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 };
-        else if (type === 'Advertising') defaultMetadata = { durationSeconds: 30, platform: 'General' };
+        const targetMetadata = metadata.targetMetadata || (type === 'Screenplay' ? { durationMinutes: 110 } : type === 'Novel' ? { targetPageCount: 300 } : { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 });
+        
+        if (metadata.pov) {
+            targetMetadata.pov = metadata.pov;
+        }
 
         const payload: any = {
             title, type, format, genres,
@@ -332,10 +332,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             theme: metadata.theme,
             setting: metadata.setting,
             protagonist_goal: metadata.protagonistGoal,
-            target_metadata: metadata.targetMetadata || defaultMetadata,
+            target_metadata: targetMetadata,
             plan_chat_history: []
         };
-        if (sourceStoryId) payload.source_story_id = sourceStoryId;
+        
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (sourceStoryId && uuidRegex.test(sourceStoryId)) {
+            payload.source_story_id = sourceStoryId;
+        }
 
         const { data: projData, error: projError } = await supabase.from('projects').insert(payload).select().single();
         if (projError || !projData) throw projError;
@@ -344,20 +348,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         
         let initialScenes: Scene[] = [];
         let initialEpisodes: Episode[] = [];
+
         if (type === 'Serial') {
-             // Create initial seasons/episodes based on target metadata if provided
-             const numSeasons = metadata.targetMetadata?.totalSeasons || 1;
-             const numEpisodes = metadata.targetMetadata?.episodesPerSeason || 1;
-             
-             // Just create the first episode of the first season to start with
              const { data: epData } = await supabase.from('episodes').insert({ project_id: newProjectId, title: 'ئەڵقەی ١: سەرەتا', number: 1 }).select().single();
              if (epData) {
                  initialEpisodes = [epData];
                  const { data: s } = await supabase.from('scenes').insert({ project_id: newProjectId, episode_id: epData.id, number: 1, title: 'TEASER', content: '<div class="sp-slug">TEASER</div><div class="sp-action">Fade in...</div>' }).select().single();
                  if(s) initialScenes = [{ ...s, episodeId: s.episode_id }];
              }
+        } else if (type === 'Novel') {
+             const { data: s } = await supabase.from('scenes').insert({ 
+                 project_id: newProjectId, 
+                 number: 1, 
+                 title: 'Chapter 1', 
+                 content: '<h1>Chapter 1</h1><p>Start writing your story here...</p>' 
+            }).select().single();
+             if(s) initialScenes = [s];
         } else {
-             const { data: s } = await supabase.from('scenes').insert({ project_id: newProjectId, number: 1, title: 'ناوەوە. شوێن - ڕۆژ', content: '<div class="sp-slug">ناوەوە. شوێن - ڕۆژ</div><div class="sp-action">...</div>' }).select().single();
+             const { data: s } = await supabase.from('scenes').insert({ 
+                 project_id: newProjectId, 
+                 number: 1, 
+                 title: 'INT. LOCATION - DAY', 
+                 content: '<div class="sp-slug">INT. LOCATION - DAY</div><div class="sp-action">Action description...</div>' 
+            }).select().single();
              if(s) initialScenes = [s];
         }
 
@@ -374,6 +387,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             theme: projData.theme,
             setting: projData.setting,
             protagonistGoal: projData.protagonist_goal,
+            pov: targetMetadata.pov,
             targetMetadata: projData.target_metadata,
             scenes: initialScenes,
             episodes: initialEpisodes,
@@ -391,7 +405,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         return newProjectId;
 
     } catch (err: any) {
-        console.error("Add Project failed", err);
+        console.error("Add Project failed:", err);
         return null;
     }
   };
@@ -402,7 +416,25 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           const dbData: any = { ...data };
           if (data.detailedStory !== undefined) { dbData.detailed_story = data.detailedStory; delete dbData.detailedStory; }
           if (data.protagonistGoal !== undefined) { dbData.protagonist_goal = data.protagonistGoal; delete dbData.protagonistGoal; }
-          if (data.targetMetadata !== undefined) { dbData.target_metadata = data.targetMetadata; delete dbData.targetMetadata; }
+          
+          if (data.targetMetadata !== undefined || data.pov !== undefined) {
+             const currentProject = projects.find(p => p.id === id);
+             const baseMeta = currentProject?.targetMetadata || {};
+             
+             const finalMeta = data.targetMetadata ? { ...data.targetMetadata } : { ...baseMeta };
+             
+             if (data.pov !== undefined) {
+                 finalMeta.pov = data.pov;
+             } else if (!data.targetMetadata && baseMeta.pov) {
+                 // Preserve existing POV
+             } else if (data.targetMetadata && baseMeta.pov && !data.targetMetadata.pov) {
+                 finalMeta.pov = baseMeta.pov;
+             }
+
+             dbData.target_metadata = finalMeta;
+             delete dbData.targetMetadata;
+             delete dbData.pov;
+          }
           
           delete dbData.scenes; delete dbData.characters; delete dbData.locations; 
           delete dbData.episodes; delete dbData.chatHistory; delete dbData.sourceStoryId;
@@ -440,12 +472,38 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const newSceneId = generateId();
       const nextNumber = (project.scenes.length > 0 ? Math.max(...project.scenes.map(s => s.number)) : 0) + 1;
       
+      let defaultTitle = 'New Scene';
+      let defaultContent = '';
+
+      if (project.blueprint) {
+          const headerRegex = new RegExp(`(?:^|\\n)#{2,3}\\s*(?:Chapter|Scene|Episode)?\\s*${nextNumber}\\b[:.]?\\s*(.*?)(?:\\n|$)`, 'i');
+          const match = project.blueprint.match(headerRegex);
+          if (match && match[1]) {
+              let cleanTitle = match[1].replace(/\[.*?\]/g, '').trim();
+              cleanTitle = cleanTitle.replace(/^[-:.]+\s*/, '');
+              if (cleanTitle.length > 0) {
+                  defaultTitle = cleanTitle;
+              }
+          }
+      }
+
+      if (project.type === 'Novel') {
+          if (defaultTitle === 'New Scene') defaultTitle = `Chapter ${nextNumber}`;
+          defaultContent = `<h1>${defaultTitle}</h1><p></p>`;
+      } else {
+          if (defaultTitle === 'New Scene') defaultTitle = 'INT. LOCATION - DAY';
+          defaultContent = `<div class="sp-slug">${defaultTitle.toUpperCase()}</div><div class="sp-action"></div>`;
+      }
+
+      if (sceneData?.title) defaultTitle = sceneData.title;
+      if (sceneData?.content) defaultContent = sceneData.content;
+
       const newScene: Scene = {
           id: newSceneId,
           episodeId: episodeId,
           number: nextNumber,
-          title: sceneData?.title || (project.type === 'Screenplay' ? 'INT. LOCATION - DAY' : 'New Scene'),
-          content: sceneData?.content || '',
+          title: defaultTitle,
+          content: defaultContent,
           summary: sceneData?.summary || ''
       };
 
@@ -483,62 +541,42 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               const remaining = p.scenes.filter(s => s.id !== sceneId).sort((a, b) => a.number - b.number);
               // Renumber scenes to fill the gap
               const renumbered = remaining.map((s, i) => ({ ...s, number: i + 1 }));
+              
+              if (currentSceneId === sceneId) {
+                  const adjacent = renumbered[0];
+                  setCurrentSceneId(adjacent ? adjacent.id : '');
+              }
+              
               return { ...p, scenes: renumbered };
           }
           return p;
       }));
-      
-      if (currentSceneId === sceneId) setCurrentSceneId('');
 
       try {
-          // 1. Delete the target scene
           await supabase.from('scenes').delete().eq('id', sceneId);
-
-          // 2. Update numbers for remaining scenes in DB
-          if (project) {
-               const remaining = project.scenes.filter(s => s.id !== sceneId).sort((a, b) => a.number - b.number);
-               const updates = remaining.map((s, i) => ({ id: s.id, number: i + 1, oldNumber: s.number }))
-                                      .filter(u => u.number !== u.oldNumber);
-               
-               for (const update of updates) {
-                   await supabase.from('scenes').update({ number: update.number }).eq('id', update.id);
-               }
-          }
       } catch (e) { setIsOffline(true); }
   };
 
   const updateSceneContent = async (sceneId: string, content: string) => {
-      if (!currentProjectId) return;
-      
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
-              return { 
-                  ...p, 
-                  scenes: p.scenes.map(s => s.id === sceneId ? { ...s, content } : s) 
-              };
+              return { ...p, scenes: p.scenes.map(s => s.id === sceneId ? { ...s, content } : s) };
           }
           return p;
       }));
-
-      if (sceneUpdateTimeoutRef.current[sceneId]) {
-          clearTimeout(sceneUpdateTimeoutRef.current[sceneId]);
-      }
-
+      
+      if (sceneUpdateTimeoutRef.current[sceneId]) clearTimeout(sceneUpdateTimeoutRef.current[sceneId]);
       sceneUpdateTimeoutRef.current[sceneId] = setTimeout(async () => {
           try {
               await supabase.from('scenes').update({ content }).eq('id', sceneId);
           } catch (e) { setIsOffline(true); }
-      }, 1000);
+      }, 2000);
   };
 
   const updateSceneSummary = async (sceneId: string, summary: string) => {
-       if (!currentProjectId) return;
-       setProjects(prev => prev.map(p => {
+      setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
-              return { 
-                  ...p, 
-                  scenes: p.scenes.map(s => s.id === sceneId ? { ...s, summary } : s) 
-              };
+              return { ...p, scenes: p.scenes.map(s => s.id === sceneId ? { ...s, summary } : s) };
           }
           return p;
       }));
@@ -547,7 +585,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       } catch (e) { setIsOffline(true); }
   };
 
-  const addCharacter = async (charData: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>): Promise<string | null> => {
+  const addCharacter = async (charData: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => {
       if (!currentProjectId) return null;
       const newId = generateId();
       const newChar: Character = {
@@ -583,14 +621,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (!currentProjectId) return;
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
-              return { 
-                  ...p, 
-                  characters: p.characters.map(c => c.id === char.id ? char : c) 
-              };
+              return { ...p, characters: p.characters.map(c => c.id === char.id ? char : c) };
           }
           return p;
       }));
-
       try {
           await supabase.from('characters').update({
               name: char.name,
@@ -611,18 +645,33 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           }
           return p;
       }));
-      try {
-          await supabase.from('characters').delete().eq('id', id);
-      } catch (e) { setIsOffline(true); }
+      try { await supabase.from('characters').delete().eq('id', id); } catch (e) { setIsOffline(true); }
+  };
+
+  const importCharactersFromBlueprint = async (blueprintText?: string): Promise<number> => {
+      if (!currentProjectId) return 0;
+      const project = projects.find(p => p.id === currentProjectId);
+      const textToAnalyze = blueprintText || project?.blueprint || project?.detailedStory || '';
+      
+      if (!textToAnalyze) return 0;
+
+      const extracted = await extractCharactersFromText(textToAnalyze);
+      let addedCount = 0;
+
+      for (const char of extracted) {
+          const exists = project?.characters.some(c => c.name.toLowerCase() === char.name.toLowerCase());
+          if (!exists) {
+              await addCharacter(char);
+              addedCount++;
+          }
+      }
+      return addedCount;
   };
 
   const addLocation = async (locData: Omit<Location, 'id'>) => {
       if (!currentProjectId) return;
       const newId = generateId();
-      const newLoc: Location = {
-          id: newId,
-          ...locData
-      };
+      const newLoc: Location = { id: newId, ...locData };
 
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
@@ -643,15 +692,39 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const deleteLocation = async (id: string) => {
-      if (!currentProjectId) return;
-      setProjects(prev => prev.map(p => {
+       if (!currentProjectId) return;
+       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               return { ...p, locations: p.locations.filter(l => l.id !== id) };
           }
           return p;
       }));
+      try { await supabase.from('locations').delete().eq('id', id); } catch (e) { setIsOffline(true); }
+  };
+
+  const bulkDeleteItems = async (items: { id: string, type: 'character' | 'location' | 'scene' }[]) => {
+      if (!currentProjectId) return;
+      
+      const charIds = items.filter(i => i.type === 'character').map(i => i.id);
+      const locIds = items.filter(i => i.type === 'location').map(i => i.id);
+      const sceneIds = items.filter(i => i.type === 'scene').map(i => i.id);
+
+      setProjects(prev => prev.map(p => {
+          if (p.id === currentProjectId) {
+              return {
+                  ...p,
+                  characters: p.characters.filter(c => !charIds.includes(c.id)),
+                  locations: p.locations.filter(l => !locIds.includes(l.id)),
+                  scenes: p.scenes.filter(s => !sceneIds.includes(s.id))
+              };
+          }
+          return p;
+      }));
+
       try {
-          await supabase.from('locations').delete().eq('id', id);
+          if (charIds.length) await supabase.from('characters').delete().in('id', charIds);
+          if (locIds.length) await supabase.from('locations').delete().in('id', locIds);
+          if (sceneIds.length) await supabase.from('scenes').delete().in('id', sceneIds);
       } catch (e) { setIsOffline(true); }
   };
 
@@ -659,266 +732,121 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (!currentProjectId) return;
       const project = projects.find(p => p.id === currentProjectId);
       if (!project) return;
-
-      const newId = generateId();
+      
       const nextNum = (project.episodes?.length || 0) + 1;
-      const newEp: Episode = {
-          id: newId,
-          title: `Episode ${nextNum}`,
-          number: nextNum,
-          summary: ''
-      };
-
-      setProjects(prev => prev.map(p => {
-          if (p.id === currentProjectId) {
-              return { ...p, episodes: [...(p.episodes || []), newEp] };
-          }
-          return p;
-      }));
-
-      try {
-          await supabase.from('episodes').insert({
-              project_id: currentProjectId,
-              id: newId,
-              title: newEp.title,
-              number: newEp.number,
-              summary: ''
-          });
-      } catch (e) { setIsOffline(true); }
-  };
-
-  const updateEpisode = async (episodeId: string, title: string) => {
-      if (!currentProjectId) return;
-      setProjects(prev => prev.map(p => {
-          if (p.id === currentProjectId) {
-              return { 
-                  ...p, 
-                  episodes: p.episodes?.map(e => e.id === episodeId ? { ...e, title } : e) || [] 
-              };
-          }
-          return p;
-      }));
-
-      try {
-          await supabase.from('episodes').update({ title }).eq('id', episodeId);
-      } catch (e) { setIsOffline(true); }
-  };
-  
-  const bulkDeleteItems = async (items: { id: string, type: 'character' | 'location' | 'scene' }[]) => {
-    if (!currentProjectId) return;
-    
-    // Capture project state before update for DB logic if needed
-    const project = projects.find(p => p.id === currentProjectId);
-
-    setProjects(prev => prev.map(p => {
-        if (p.id !== currentProjectId) return p;
-        
-        let newP = { ...p };
-        const charIds = items.filter(i => i.type === 'character').map(i => i.id);
-        const locIds = items.filter(i => i.type === 'location').map(i => i.id);
-        const sceneIds = items.filter(i => i.type === 'scene').map(i => i.id);
-        
-        if (charIds.length) newP.characters = newP.characters.filter(c => !charIds.includes(c.id));
-        if (locIds.length) newP.locations = newP.locations.filter(l => !locIds.includes(l.id));
-        
-        if (sceneIds.length) {
-            // Renumber remaining scenes
-            const remaining = newP.scenes.filter(s => !sceneIds.includes(s.id)).sort((a,b) => a.number - b.number);
-            newP.scenes = remaining.map((s, i) => ({ ...s, number: i + 1 }));
-        }
-        
-        return newP;
-    }));
-
-    try {
-        const charIds = items.filter(i => i.type === 'character').map(i => i.id);
-        const locIds = items.filter(i => i.type === 'location').map(i => i.id);
-        const sceneIds = items.filter(i => i.type === 'scene').map(i => i.id);
-
-        if (charIds.length) await supabase.from('characters').delete().in('id', charIds);
-        if (locIds.length) await supabase.from('locations').delete().in('id', locIds);
-        
-        if (sceneIds.length) {
-            await supabase.from('scenes').delete().in('id', sceneIds);
-            // Renumber remaining scenes in DB
-            if (project) {
-                const remaining = project.scenes.filter(s => !sceneIds.includes(s.id)).sort((a,b) => a.number - b.number);
-                const updates = remaining.map((s, i) => ({ id: s.id, number: i + 1, oldNumber: s.number }))
-                                       .filter(u => u.number !== u.oldNumber);
-                
-                for (const update of updates) {
-                    await supabase.from('scenes').update({ number: update.number }).eq('id', update.id);
-                }
-            }
-        }
-    } catch(e) { setIsOffline(true); }
-  };
-
-  const importCharactersFromBlueprint = async (blueprintText?: string): Promise<number> => {
-      if (!currentProjectId) return 0;
-      const project = projects.find(p => p.id === currentProjectId);
-      if (!project) return 0;
+      const title = `ئەڵقەی ${nextNum}`;
       
-      const text = blueprintText || project.blueprint || project.detailedStory;
-      if (!text) return 0;
-      
-      try {
-          const extracted = await extractCharactersFromText(text);
-          if (!extracted || extracted.length === 0) return 0;
-          
-          const newCharacters: Character[] = [];
-          const nameToIdMap: Record<string, string> = {};
-          
-          // Pre-populate map with existing characters
-          project.characters.forEach(c => {
-              nameToIdMap[c.name.toLowerCase()] = c.id;
-          });
+      const { data } = await supabase.from('episodes').insert({ 
+          project_id: currentProjectId, 
+          title, 
+          number: nextNum 
+      }).select().single();
 
-          // PASS 1: Generate IDs and store basic details for NEW characters
-          for (const charData of extracted) {
-              const normalizedName = charData.name.toLowerCase();
-              if (!nameToIdMap[normalizedName]) {
-                  const newId = generateId();
-                  nameToIdMap[normalizedName] = newId;
-                  
-                  newCharacters.push({
-                      id: newId,
-                      name: charData.name as string,
-                      role: (charData.role as string) || 'Supporting',
-                      archetype: (charData.archetype as string) || '',
-                      description: (charData.description as string) || '',
-                      traits: (charData.traits as string[]) || [],
-                      relationships: [], // Will fill in Pass 2
-                      arcCompletion: 0
-                  });
-              }
-          }
-
-          // PASS 2: Resolve Relationships
-          // We iterate through the AI response again to map relationships using the IDs we just generated (or found)
-          extracted.forEach(charData => {
-              const sourceId = nameToIdMap[charData.name.toLowerCase()];
-              // Find the character object we just created (if it's new)
-              const charObj = newCharacters.find(c => c.id === sourceId);
-              
-              if (charObj && charData.relationships && Array.isArray(charData.relationships)) {
-                  const resolvedRelationships: Relationship[] = [];
-                  
-                  charData.relationships.forEach((rel: any) => {
-                      const targetId = nameToIdMap[rel.targetName?.toLowerCase()];
-                      if (targetId && targetId !== sourceId) {
-                          resolvedRelationships.push({
-                              targetId: targetId,
-                              type: rel.type || 'Connected',
-                              description: rel.description || ''
-                          });
-                      }
-                  });
-                  
-                  charObj.relationships = resolvedRelationships;
-              }
-          });
-
-          if (newCharacters.length === 0) return 0;
-
-          // BATCH UPDATE STATE
+      if (data) {
+          const newEp: Episode = { id: data.id, title: data.title, number: data.number, summary: data.summary };
           setProjects(prev => prev.map(p => {
               if (p.id === currentProjectId) {
-                  return { ...p, characters: [...p.characters, ...newCharacters] };
+                  return { ...p, episodes: [...(p.episodes || []), newEp] };
               }
               return p;
           }));
-
-          // BATCH INSERT DB
-          const dbPayload = newCharacters.map(c => ({
-              project_id: currentProjectId,
-              id: c.id,
-              name: c.name,
-              role: c.role,
-              archetype: c.archetype,
-              description: c.description,
-              traits: c.traits,
-              relationships: c.relationships
-          }));
-
-          try {
-              await supabase.from('characters').insert(dbPayload);
-          } catch(e) {
-              console.warn("Offline mode - saved locally", e);
-              setIsOffline(true);
-          }
-
-          return newCharacters.length;
-      } catch (e) {
-          console.error(e);
-          return 0;
       }
   };
 
-  const addChatMessage = async (projectId: string, message: ChatMessage) => {
-    setProjects(prev => prev.map(p => {
-        if (p.id === projectId) return { ...p, chatHistory: [...(p.chatHistory || []), message] };
-        return p;
-    }));
-    try {
-        await supabase.from('chat_history').insert({
-            project_id: projectId,
-            role: message.role,
-            text: message.text,
-            has_contradiction: message.hasContradiction
-        });
-    } catch (e) { setIsOffline(true); }
-  };
-
-  const addPlanChatMessage = async (projectId: string, message: ChatMessage) => {
-      const project = projects.find(p => p.id === projectId);
-      if (!project) return;
-      
-      const newHistory = [...(project.planChatHistory || []), message];
-      
+  const updateEpisode = async (episodeId: string, title: string) => {
       setProjects(prev => prev.map(p => {
-          if (p.id === projectId) return { ...p, planChatHistory: newHistory };
-          return p;
-      }));
-
-      try {
-          await supabase.from('projects').update({
-              plan_chat_history: newHistory,
-              updated_at: new Date()
-          }).eq('id', projectId);
-      } catch (e) { setIsOffline(true); }
-  };
-
-  const replaceTextInProject = (projectId: string, search: string, replace: string) => {
-      setProjects(prev => prev.map(p => {
-          if (p.id === projectId) {
-              return { 
-                  ...p, 
-                  scenes: p.scenes.map(s => ({
-                      ...s,
-                      content: s.content.split(search).join(replace)
-                  }))
-              };
+          if (p.id === currentProjectId) {
+              return { ...p, episodes: (p.episodes || []).map(e => e.id === episodeId ? { ...e, title } : e) };
           }
           return p;
       }));
+      try { await supabase.from('episodes').update({ title }).eq('id', episodeId); } catch(e) { setIsOffline(true); }
+  };
+
+  const addChatMessage = async (projectId: string, message: ChatMessage) => {
+      setProjects(prev => prev.map(p => {
+          if (p.id === projectId) {
+              return { ...p, chatHistory: [...(p.chatHistory || []), message] };
+          }
+          return p;
+      }));
+      try {
+          await supabase.from('chat_history').insert({
+              project_id: projectId,
+              role: message.role,
+              text: message.text,
+              has_contradiction: message.hasContradiction
+          });
+      } catch (e) { setIsOffline(true); }
+  };
+  
+  const addPlanChatMessage = (projectId: string, message: ChatMessage) => {
+      setProjects(prev => prev.map(p => {
+          if (p.id === projectId) {
+              return { ...p, planChatHistory: [...(p.planChatHistory || []), message] };
+          }
+          return p;
+      }));
+      updateProject(projectId, { planChatHistory: [...(currentProject?.planChatHistory || []), message] });
+  };
+
+  const replaceTextInProject = async (projectId: string, search: string, replace: string) => {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+
+      project.scenes.forEach(scene => {
+          if (scene.content.includes(search)) {
+               const newContent = scene.content.split(search).join(replace);
+               updateSceneContent(scene.id, newContent);
+          }
+      });
   };
 
   return (
     <ProjectContext.Provider value={{
-      projects, stories, currentProject, currentSceneId, currentStoryId, currentView,
-      isSidebarOpen, isRightPanelOpen, isLoading, isOffline,
-      setSidebarOpen, setRightPanelOpen, setCurrentProject: setCurrentProjectId,
-      setCurrentSceneId, setCurrentStoryId, navigateTo,
-      addProject, createProjectFromStory, addStory, updateStory, deleteStory, updateProject, deleteProject, importProject,
-      addScene, deleteScene, updateSceneContent, updateSceneSummary,
-      addCharacter, updateCharacter, deleteCharacter, importCharactersFromBlueprint,
-      addLocation, deleteLocation, bulkDeleteItems, 
-      addEpisode, updateEpisode,
+      projects,
+      stories,
+      currentProject,
+      currentSceneId,
+      currentStoryId,
+      currentView,
+      isSidebarOpen,
+      isRightPanelOpen,
+      isLoading,
+      isOffline,
+      setSidebarOpen,
+      setRightPanelOpen,
+      setCurrentProject: setCurrentProjectId,
+      setCurrentSceneId,
+      setCurrentStoryId,
+      navigateTo,
+      addProject,
+      createProjectFromStory,
+      addStory,
+      updateStory,
+      deleteStory,
+      updateProject,
+      deleteProject,
+      importProject,
+      addScene,
+      deleteScene,
+      updateSceneContent,
+      updateSceneSummary,
+      addCharacter,
+      updateCharacter,
+      deleteCharacter,
+      importCharactersFromBlueprint,
+      addLocation,
+      deleteLocation,
+      bulkDeleteItems,
+      addEpisode,
+      updateEpisode,
       addChatMessage,
       addPlanChatMessage,
       replaceTextInProject,
-      confirmationState, showConfirmation, hideConfirmation,
+      confirmationState,
+      showConfirmation,
+      hideConfirmation
     }}>
       {children}
     </ProjectContext.Provider>
@@ -927,6 +855,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
 export const useProject = () => {
   const context = useContext(ProjectContext);
-  if (!context) throw new Error("useProject must be used within a ProjectProvider");
+  if (context === undefined) {
+    throw new Error('useProject must be used within a ProjectProvider');
+  }
   return context;
 };
