@@ -2,8 +2,8 @@
 
 export type ViewType = 'editor' | 'dashboard' | 'search' | 'inbox' | 'characters' | 'locations' | 'settings' | 'outline' | 'story-builder';
 
-export type ProjectType = 'Screenplay' | 'Novel' | 'Serial';
-export type ProjectFormat = 'Feature' | 'Short' | 'Episode' | 'Standard';
+export type ProjectType = 'Screenplay' | 'Novel' | 'Serial' | 'Advertisement';
+export type ProjectFormat = 'Feature' | 'Short' | 'Episode' | 'Standard' | 'Commercial';
 
 export interface Episode {
     id: string;
@@ -35,6 +35,9 @@ export interface TargetMetadata {
     totalSeasons?: number;
     episodesPerSeason?: number;
     episodeDuration?: number;
+
+    // Advertisement
+    adDurationSeconds?: number;
 }
 
 export interface StoryData {

@@ -25,34 +25,43 @@ const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: str
     let goal = null;
     let target = null;
     let planTitle = null;
+    let actGoal = null;
     
-    // Robust Regex to find the SECTION in the plan
-    // Logic: Look for "## Chapter N" or "### Scene N"
-    // Then capture everything UNTIL the next header "##" or "###"
-    // This allows us to search for the [Goal] tag anywhere within that block (even next lines)
-    
-    // 1. Find the start of the section
-    const headerPattern = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
-    
-    const match = blueprint.match(headerPattern);
-    
+    // 1. Find the section for this specific Scene/Chapter
+    // Matches: "## Chapter 1", "## 1.", "### Scene 1", "### 1", etc.
+    const headerRegex = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
+    const match = blueprint.match(headerRegex);
+
     if (match) {
-        // match[0] is the full text of the section
-        // match[2] is the title on the header line
-        const sectionContent = match[0];
-        planTitle = match[2].trim().replace(/\[.*?\]/g, '').trim(); // Clean title from tags
+        const fullSection = match[0];
+        const rawTitle = match[2]?.trim();
+        planTitle = rawTitle ? rawTitle.replace(/\[.*?\]/g, '').trim() : `Chapter ${sceneNumber}`;
         
-        // Extract Goal (Flexible formats: **Goal:**, [Goal: ...], Goal: ...)
-        // We search within the entire section content
-        const goalMatch = sectionContent.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        // Extract Goal from Section
+        const goalMatch = fullSection.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (goalMatch && goalMatch[1]) goal = goalMatch[1].trim();
-        
-        // Extract Target (Flexible formats: [Page Target: ...], Target: ..., Length: ..., Word Count: ...)
-        const targetMatch = sectionContent.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+
+        // Extract Target from Section
+        const targetMatch = fullSection.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (targetMatch && targetMatch[1]) target = targetMatch[1].trim();
+        
+        // 2. Find Parent Act Goal (Backward Search)
+        const index = match.index || 0;
+        const textBefore = blueprint.substring(0, index);
+        // Find last "# Act X" occurrence
+        const acts = [...textBefore.matchAll(/^#\s*Act\s+\w+.*$/gm)];
+        if (acts.length > 0) {
+            const lastActHeader = acts[acts.length - 1][0];
+            // Find goal associated with this Act line (or immediate lines after)
+            const actIndex = textBefore.lastIndexOf(lastActHeader);
+            const actSection = textBefore.substring(actIndex, index); // Text between Act Header and Current Scene
+            
+            const actGoalMatch = actSection.match(/(?:\*\*|\[)?\s*Act Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+            if (actGoalMatch) actGoal = actGoalMatch[1].trim();
+        }
     }
     
-    return { goal, target, planTitle };
+    return { goal, target, planTitle, actGoal };
 };
 
 

@@ -19,10 +19,13 @@ const MainLayout: React.FC = () => {
   const { currentView, isSidebarOpen, setSidebarOpen, isRightPanelOpen, setRightPanelOpen } = useProject();
 
   const isEditor = currentView === 'editor';
+  const isStoryBuilder = currentView === 'story-builder';
 
-  // Keyboard Shortcuts (Keep functional for mobile or if needed, though desktop UI is now static)
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.key) return;
+      
       // Toggle Sidebar: Cmd/Ctrl + B
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault();
@@ -77,43 +80,41 @@ const MainLayout: React.FC = () => {
         />
       )}
       
-      {/* Sidebar on Right (Start in RTL) - Hide in Story Builder */}
-      {currentView !== 'story-builder' && <Sidebar />}
+      {/* Sidebar - Hidden in Story Builder */}
+      {!isStoryBuilder && <Sidebar />}
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full transition-all group/main">
         
-        {/* Mobile Header - Hide in Story Builder */}
-        {currentView !== 'story-builder' && (
+        {/* Mobile Header - Hidden in Story Builder */}
+        {!isStoryBuilder && (
             <div 
-                className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 bg-zinc-950 relative z-30"
+                className="md:hidden h-12 flex-shrink-0 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 relative z-30"
                 style={{ 
                     height: 'calc(3rem + env(safe-area-inset-top))', 
                     paddingTop: 'env(safe-area-inset-top)' 
                 }}
             >
-                <div className="h-full flex items-center justify-between px-4">
-                    {/* Right Side: Menu & Brand */}
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setSidebarOpen(true)} 
-                            className="text-zinc-400 hover:text-white"
-                        >
-                            <Menu className="w-5 h-5" />
-                        </button>
-                        <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
-                    </div>
-
-                    {/* Left Side: AI Toggle - Only visible in Editor */}
-                    {isEditor && (
-                        <button 
-                            onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
-                            className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
-                            title="Toggle AI Chat"
-                        >
-                            <Sparkles className="w-5 h-5" />
-                        </button>
-                    )}
+                {/* Right Side: Menu & Brand */}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setSidebarOpen(true)} 
+                        className="text-zinc-400 hover:text-white"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm font-semibold text-zinc-100">Zoer.ai</span>
                 </div>
+
+                {/* Left Side: AI Toggle - Only visible in Editor */}
+                {isEditor && (
+                    <button 
+                        onClick={() => setRightPanelOpen(!isRightPanelOpen)} 
+                        className={`p-2 rounded-md transition ${isRightPanelOpen ? 'text-primary-400 bg-primary-900/20' : 'text-zinc-400 hover:text-white'}`}
+                        title="Toggle AI Chat"
+                    >
+                        <Sparkles className="w-5 h-5" />
+                    </button>
+                )}
             </div>
         )}
 
@@ -122,7 +123,7 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
       
-      {/* AI Panel on Left (End in RTL) - Hidden via CSS when not in editor */}
+      {/* AI Panel - Hidden unless in Editor */}
       <div className={isEditor ? 'contents' : 'hidden'}>
         <RightPanel />
       </div>

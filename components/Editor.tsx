@@ -18,36 +18,40 @@ const MARGIN_BOTTOM_PX = 96; // ~25mm
 
 // --- Blueprint Parser Helper (Quick inline for Editor efficiency) ---
 const extractGoalAndTarget = (blueprint: string, sceneNumber: number, type: string) => {
-    if (!blueprint) return { goal: null, target: null };
+    if (!blueprint) return { goal: null, target: null, actGoal: null };
     
     let goal = null;
     let target = null;
+    let actGoal = null;
     
-    // Robust Regex to find the SECTION in the plan
-    // Logic: Look for "## Chapter N" or "### Scene N"
-    // Then capture everything UNTIL the next header "##" or "###"
-    // This allows us to search for the [Goal] tag anywhere within that block (even next lines)
-    
-    // 1. Find the start of the section
-    const headerPattern = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
-    
-    const match = blueprint.match(headerPattern);
+    // 1. Find the section for this specific Scene/Chapter
+    const headerRegex = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
+    const match = blueprint.match(headerRegex);
     
     if (match) {
-        // match[0] is the full text of the section
-        const sectionContent = match[0];
+        const fullSection = match[0];
         
-        // Extract Goal (Flexible formats: **Goal:**, [Goal: ...], Goal: ...)
-        // We search within the entire section content
-        const goalMatch = sectionContent.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        const goalMatch = fullSection.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (goalMatch && goalMatch[1]) goal = goalMatch[1].trim();
         
-        // Extract Target (Flexible formats: [Page Target: ...], Target: ..., Length: ..., Word Count: ...)
-        const targetMatch = sectionContent.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+        const targetMatch = fullSection.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (targetMatch && targetMatch[1]) target = targetMatch[1].trim();
+
+        // 2. Find Parent Act Goal (Backward Search)
+        const index = match.index || 0;
+        const textBefore = blueprint.substring(0, index);
+        const acts = [...textBefore.matchAll(/^#\s*Act\s+\w+.*$/gm)];
+        if (acts.length > 0) {
+            const lastActHeader = acts[acts.length - 1][0];
+            const actIndex = textBefore.lastIndexOf(lastActHeader);
+            const actSection = textBefore.substring(actIndex, index); 
+            
+            const actGoalMatch = actSection.match(/(?:\*\*|\[)?\s*Act Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
+            if (actGoalMatch) actGoal = actGoalMatch[1].trim();
+        }
     }
     
-    return { goal, target };
+    return { goal, target, actGoal };
 };
 
 // --- Sub-Component: Single Page ---
@@ -139,7 +143,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         const currentVersion = ++requestVersion.current;
         
         // 3. Extract Goals & Targets from blueprint
-        const { goal, target } = extractGoalAndTarget(
+        const { goal, target, actGoal } = extractGoalAndTarget(
             projectMetadata.blueprint || '', 
             sceneNumber, 
             projectMetadata.type
@@ -147,7 +151,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
         
         // 4. Call AI
         const suggestion = await generateAutocomplete(contextText, {
-            type: isNovelMode ? 'Novel' : 'Screenplay',
+            type: projectMetadata.type,
             genre: projectMetadata.genres?.join(', ') || 'General',
             style: isNovelMode ? 'Descriptive Prose' : 'Screenplay Action/Dialogue',
             title: projectMetadata.title,
@@ -157,7 +161,8 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             pov: projectMetadata.pov,
             characters: projectMetadata.characters?.map((c: any) => `${c.name} (${c.role})`).join('; '),
             sceneGoal: goal || undefined,
-            pageTarget: target || undefined
+            pageTarget: target || undefined,
+            actGoal: actGoal || undefined
         });
 
         // 5. Validate State (User hasn't typed anything else)

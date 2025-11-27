@@ -60,7 +60,7 @@ const Dashboard: React.FC = () => {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_backup.json`);
+      downloadAnchorNode.setAttribute("download", `${(project.title || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_backup.json`);
       document.body.appendChild(downloadAnchorNode); 
       downloadAnchorNode.click();
       downloadAnchorNode.remove();

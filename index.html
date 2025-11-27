@@ -86,11 +86,23 @@
         
         /* Novel Formatting Classes */
         .novel-content p {
-            margin-bottom: 0.5rem;
-            line-height: 1.8;
+            margin-bottom: 1rem;
+            line-height: 1.9;
             text-align: justify;
             text-indent: 1.5em;
-            color: #e4e4e7;
+            color: #d4d4d8;
+        }
+        /* SPECIFIC CLASS FOR DIALOGUE IN NOVELS */
+        .novel-content p.novel-dialogue {
+            color: #ffffff; /* Brighter white for dialogue */
+            text-indent: 0; 
+            padding-right: 1.25rem; /* Indentation */
+            border-right: 3px solid #6366f1; /* Visual marker for dialogue */
+            background: linear-gradient(90deg, rgba(99,102,241,0.05) 0%, transparent 100%);
+            margin-top: 1.25rem;
+            margin-bottom: 1.25rem;
+            padding-top: 0.25rem;
+            padding-bottom: 0.25rem;
         }
         .novel-content p:first-of-type {
             text-indent: 0;

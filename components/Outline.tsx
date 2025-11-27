@@ -18,6 +18,7 @@ const MarkdownDisplay: React.FC<{ content: string; characterNames: string[] }> =
 
     // Helper to detect structural keywords for badges
     const getBadge = (text: string) => {
+        if (!text) return null;
         const keywords = ['Inciting Incident', 'Plot Point', 'Midpoint', 'Climax', 'Resolution', 'Hook', 'Pinch Point'];
         const found = keywords.find(k => text.includes(k) || text.includes(k.toUpperCase()));
         if (found) {
@@ -28,10 +29,15 @@ const MarkdownDisplay: React.FC<{ content: string; characterNames: string[] }> =
 
     // Helper to highlight character names within a string
     const highlightNames = (text: string) => {
+        if (!text) return text;
         if (!characterNames || characterNames.length === 0) return text;
         
         // Escape regex characters in names and sort by length (longest first) to match "John Doe" before "John"
-        const sortedNames = [...characterNames].sort((a, b) => b.length - a.length);
+        // Ensure we filter out any undefined/null/empty names to prevent crashes
+        const sortedNames = [...characterNames]
+            .filter(n => n && typeof n === 'string' && n.trim().length > 0)
+            .sort((a, b) => b.length - a.length);
+            
         if (sortedNames.length === 0) return text;
 
         const regex = new RegExp(`(${sortedNames.join('|')})`, 'gi');
@@ -40,7 +46,8 @@ const MarkdownDisplay: React.FC<{ content: string; characterNames: string[] }> =
         if (parts.length === 1) return text;
 
         return parts.map((part, i) => {
-            const isMatch = sortedNames.some(name => name.toLowerCase() === part.toLowerCase());
+            if (!part) return null;
+            const isMatch = sortedNames.some(name => name && part && name.toLowerCase() === part.toLowerCase());
             if (isMatch) {
                 return (
                     <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded-md mx-0.5 bg-rose-500/10 text-rose-300 font-bold border border-rose-500/20 text-[0.9em]">
@@ -65,6 +72,7 @@ const MarkdownDisplay: React.FC<{ content: string; characterNames: string[] }> =
 
     // Helper to check for Episode titles in Kurdish or English
     const isEpisodeTitle = (text: string) => {
+        if (!text || typeof text !== 'string') return false;
         const lower = text.toLowerCase();
         return lower.includes('episode') || lower.includes('ئەڵقە');
     };

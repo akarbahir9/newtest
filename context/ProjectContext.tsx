@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage, Relationship, Story, StoryData } from '../types';
 import { supabase } from '../lib/supabase';
-import { extractCharactersFromText } from '../services/geminiService';
+import { extractCharactersFromText, extractLocationsFromText } from '../services/geminiService';
 
 // Robust ID Generator
 const generateId = () => {
@@ -57,11 +57,12 @@ interface ProjectContextType {
   updateSceneContent: (sceneId: string, content: string) => void;
   updateSceneSummary: (sceneId: string, summary: string) => void;
   addCharacter: (char: Omit<Character, 'id' | 'arcCompletion' | 'relationships'>) => Promise<string | null>;
-  updateCharacter: (char: Character) => void;
+  updateCharacter: (char: Character) => Promise<void>;
   deleteCharacter: (id: string) => void;
   importCharactersFromBlueprint: (blueprintText?: string) => Promise<number>;
-  addLocation: (loc: Omit<Location, 'id'>) => void;
+  addLocation: (loc: Omit<Location, 'id'>) => Promise<void>;
   deleteLocation: (id: string) => void;
+  importLocationsFromBlueprint: (blueprintText?: string) => Promise<number>;
   bulkDeleteItems: (items: { id: string, type: 'character' | 'location' | 'scene' }[]) => void;
   addEpisode: () => void;
   updateEpisode: (episodeId: string, title: string) => void;
@@ -318,7 +319,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       initialCharacters?: any[]
   ): Promise<string | null> => {
     try {
-        const targetMetadata = metadata.targetMetadata || (type === 'Screenplay' ? { durationMinutes: 110 } : type === 'Novel' ? { targetPageCount: 300 } : { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 });
+        const targetMetadata = metadata.targetMetadata || (
+            type === 'Screenplay' ? { durationMinutes: 110 } : 
+            type === 'Novel' ? { targetPageCount: 300 } : 
+            type === 'Serial' ? { totalSeasons: 1, episodesPerSeason: 8, episodeDuration: 50 } :
+            type === 'Advertisement' ? { adDurationSeconds: 30 } :
+            { durationMinutes: 90 }
+        );
         
         if (metadata.pov) {
             targetMetadata.pov = metadata.pov;
@@ -362,6 +369,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                  number: 1, 
                  title: 'Chapter 1', 
                  content: '<h1>Chapter 1</h1><p>Start writing your story here...</p>' 
+            }).select().single();
+             if(s) initialScenes = [s];
+        } else if (type === 'Advertisement') {
+             const { data: s } = await supabase.from('scenes').insert({ 
+                 project_id: newProjectId, 
+                 number: 1, 
+                 title: 'TV SPOT - 30s', 
+                 content: '<div class="sp-slug">TV SPOT - 30s</div><div class="sp-action">VISUAL: Open on product...</div>' 
             }).select().single();
              if(s) initialScenes = [s];
         } else {
@@ -534,8 +549,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const deleteScene = async (sceneId: string) => {
       if (!currentProjectId) return;
       
-      const project = projects.find(p => p.id === currentProjectId);
-
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               const remaining = p.scenes.filter(s => s.id !== sceneId).sort((a, b) => a.number - b.number);
@@ -589,12 +602,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (!currentProjectId) return null;
       const newId = generateId();
       const newChar: Character = {
-          id: newId,
           ...charData,
+          id: newId,
           arcCompletion: 0,
           relationships: []
       };
-
+      
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               return { ...p, characters: [...p.characters, newChar] };
@@ -605,15 +618,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       try {
           await supabase.from('characters').insert({
               project_id: currentProjectId,
-              id: newId,
               name: newChar.name,
               role: newChar.role,
               archetype: newChar.archetype,
               description: newChar.description,
               traits: newChar.traits,
-              relationships: []
+              arc_completion: 0
           });
       } catch (e) { setIsOffline(true); }
+      
       return newId;
   };
 
@@ -632,7 +645,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               archetype: char.archetype,
               description: char.description,
               traits: char.traits,
-              relationships: char.relationships
+              relationships: char.relationships,
+              arc_completion: char.arcCompletion
           }).eq('id', char.id);
       } catch (e) { setIsOffline(true); }
   };
@@ -651,49 +665,108 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const importCharactersFromBlueprint = async (blueprintText?: string): Promise<number> => {
       if (!currentProjectId) return 0;
       const project = projects.find(p => p.id === currentProjectId);
-      const textToAnalyze = blueprintText || project?.blueprint || project?.detailedStory || '';
-      
+      if (!project) return 0;
+
+      const textToAnalyze = blueprintText || project.blueprint || project.detailedStory || '';
       if (!textToAnalyze) return 0;
 
       const extracted = await extractCharactersFromText(textToAnalyze);
       let addedCount = 0;
+      
+      // 1. Map existing names to IDs for relationship resolution
+      const nameToIdMap = new Map<string, string>();
+      project.characters.forEach(c => {
+          if (c.name) nameToIdMap.set(c.name.trim().toLowerCase(), c.id);
+      });
 
-      for (const char of extracted) {
-          const exists = project?.characters.some(c => c.name.toLowerCase() === char.name.toLowerCase());
-          if (!exists) {
-              await addCharacter(char);
+      const newlyCreatedChars: { id: string, data: any }[] = [];
+
+      // 2. Create Characters
+      for (const c of extracted) {
+          if (!c.name) continue;
+          const normalizedName = c.name.trim().toLowerCase();
+          
+          if (nameToIdMap.has(normalizedName)) {
+              continue; 
+          }
+
+          const newId = await addCharacter({
+              name: c.name,
+              role: c.role || 'Supporting',
+              archetype: c.archetype || '',
+              description: c.description || '',
+              traits: c.traits || []
+          });
+
+          if (newId) {
+              nameToIdMap.set(normalizedName, newId);
+              newlyCreatedChars.push({ id: newId, data: c });
               addedCount++;
           }
       }
+
+      // 3. Link Relationships for Newly Created Characters
+      for (const item of newlyCreatedChars) {
+          const { id, data } = item;
+          
+          if (data.relationships && Array.isArray(data.relationships) && data.relationships.length > 0) {
+              const relationships: Relationship[] = [];
+              
+              for (const rel of data.relationships) {
+                  if (rel.targetName) {
+                      const targetId = nameToIdMap.get(rel.targetName.trim().toLowerCase());
+                      if (targetId) {
+                          relationships.push({
+                              targetId: targetId,
+                              type: rel.type || 'Connection',
+                              description: rel.description || ''
+                          });
+                      }
+                  }
+              }
+
+              if (relationships.length > 0) {
+                  await updateCharacter({
+                      id: id,
+                      name: data.name,
+                      role: data.role || 'Supporting',
+                      archetype: data.archetype || '',
+                      description: data.description || '',
+                      traits: data.traits || [],
+                      arcCompletion: 0,
+                      relationships: relationships
+                  });
+              }
+          }
+      }
+
       return addedCount;
   };
 
   const addLocation = async (locData: Omit<Location, 'id'>) => {
       if (!currentProjectId) return;
       const newId = generateId();
-      const newLoc: Location = { id: newId, ...locData };
-
+      const newLoc: Location = { ...locData, id: newId };
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               return { ...p, locations: [...p.locations, newLoc] };
           }
           return p;
       }));
-
       try {
           await supabase.from('locations').insert({
               project_id: currentProjectId,
-              id: newId,
               name: newLoc.name,
               type: newLoc.type,
-              description: newLoc.description
+              description: newLoc.description,
+              sensory_details: newLoc.sensoryDetails
           });
       } catch (e) { setIsOffline(true); }
   };
 
   const deleteLocation = async (id: string) => {
-       if (!currentProjectId) return;
-       setProjects(prev => prev.map(p => {
+      if (!currentProjectId) return;
+      setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               return { ...p, locations: p.locations.filter(l => l.id !== id) };
           }
@@ -701,31 +774,76 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }));
       try { await supabase.from('locations').delete().eq('id', id); } catch (e) { setIsOffline(true); }
   };
+  
+  const importLocationsFromBlueprint = async (blueprintText?: string): Promise<number> => {
+      if (!currentProjectId) return 0;
+      const project = projects.find(p => p.id === currentProjectId);
+      if (!project) return 0;
 
-  const bulkDeleteItems = async (items: { id: string, type: 'character' | 'location' | 'scene' }[]) => {
-      if (!currentProjectId) return;
+      const textToAnalyze = blueprintText || project.blueprint || project.detailedStory || '';
+      if (!textToAnalyze) return 0;
+
+      const extracted = await extractLocationsFromText(textToAnalyze);
+      let addedCount = 0;
       
+      const existingNames = new Set(project.locations.map(l => l.name.trim().toLowerCase()));
+
+      for (const loc of extracted) {
+          if (!loc.name) continue;
+          const normalizedName = loc.name.trim().toLowerCase();
+          
+          if (existingNames.has(normalizedName)) {
+              continue; 
+          }
+
+          await addLocation({
+              name: loc.name,
+              type: loc.type || 'MIXED',
+              description: loc.description || ''
+          });
+          
+          existingNames.add(normalizedName);
+          addedCount++;
+      }
+      return addedCount;
+  };
+
+  const bulkDeleteItems = (items: { id: string, type: 'character' | 'location' | 'scene' }[]) => {
+      if (!currentProjectId) return;
+      const project = projects.find(p => p.id === currentProjectId);
+      if (!project) return;
+
       const charIds = items.filter(i => i.type === 'character').map(i => i.id);
       const locIds = items.filter(i => i.type === 'location').map(i => i.id);
       const sceneIds = items.filter(i => i.type === 'scene').map(i => i.id);
 
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
+              let updatedScenes = p.scenes;
+              
+              if (sceneIds.length > 0) {
+                 const remaining = p.scenes.filter(s => !sceneIds.includes(s.id)).sort((a, b) => a.number - b.number);
+                 updatedScenes = remaining.map((s, i) => ({ ...s, number: i + 1 }));
+              }
+
               return {
                   ...p,
                   characters: p.characters.filter(c => !charIds.includes(c.id)),
                   locations: p.locations.filter(l => !locIds.includes(l.id)),
-                  scenes: p.scenes.filter(s => !sceneIds.includes(s.id))
+                  scenes: updatedScenes
               };
           }
           return p;
       }));
 
-      try {
-          if (charIds.length) await supabase.from('characters').delete().in('id', charIds);
-          if (locIds.length) await supabase.from('locations').delete().in('id', locIds);
-          if (sceneIds.length) await supabase.from('scenes').delete().in('id', sceneIds);
-      } catch (e) { setIsOffline(true); }
+      // Async DB Deletions
+      (async () => {
+          try {
+              if (charIds.length) await supabase.from('characters').delete().in('id', charIds);
+              if (locIds.length) await supabase.from('locations').delete().in('id', locIds);
+              if (sceneIds.length) await supabase.from('scenes').delete().in('id', sceneIds);
+          } catch(e) { setIsOffline(true); }
+      })();
   };
 
   const addEpisode = async () => {
@@ -734,16 +852,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (!project) return;
       
       const nextNum = (project.episodes?.length || 0) + 1;
-      const title = `ئەڵقەی ${nextNum}`;
+      const newEpTitle = `ئەڵقەی ${nextNum}`;
       
-      const { data } = await supabase.from('episodes').insert({ 
-          project_id: currentProjectId, 
-          title, 
-          number: nextNum 
+      const { data, error } = await supabase.from('episodes').insert({
+          project_id: currentProjectId,
+          title: newEpTitle,
+          number: nextNum
       }).select().single();
-
+      
       if (data) {
-          const newEp: Episode = { id: data.id, title: data.title, number: data.number, summary: data.summary };
+          const newEp: Episode = { id: data.id, title: data.title, number: data.number, summary: '' };
           setProjects(prev => prev.map(p => {
               if (p.id === currentProjectId) {
                   return { ...p, episodes: [...(p.episodes || []), newEp] };
@@ -754,13 +872,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const updateEpisode = async (episodeId: string, title: string) => {
+      if (!currentProjectId) return;
       setProjects(prev => prev.map(p => {
           if (p.id === currentProjectId) {
               return { ...p, episodes: (p.episodes || []).map(e => e.id === episodeId ? { ...e, title } : e) };
           }
           return p;
       }));
-      try { await supabase.from('episodes').update({ title }).eq('id', episodeId); } catch(e) { setIsOffline(true); }
+      try {
+          await supabase.from('episodes').update({ title }).eq('id', episodeId);
+      } catch (e) { setIsOffline(true); }
   };
 
   const addChatMessage = async (projectId: string, message: ChatMessage) => {
@@ -773,33 +894,72 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       try {
           await supabase.from('chat_history').insert({
               project_id: projectId,
+              id: message.id,
               role: message.role,
               text: message.text,
               has_contradiction: message.hasContradiction
           });
       } catch (e) { setIsOffline(true); }
   };
-  
-  const addPlanChatMessage = (projectId: string, message: ChatMessage) => {
+
+  const addPlanChatMessage = async (projectId: string, message: ChatMessage) => {
       setProjects(prev => prev.map(p => {
           if (p.id === projectId) {
               return { ...p, planChatHistory: [...(p.planChatHistory || []), message] };
           }
           return p;
       }));
-      updateProject(projectId, { planChatHistory: [...(currentProject?.planChatHistory || []), message] });
-  };
-
-  const replaceTextInProject = async (projectId: string, search: string, replace: string) => {
+      // We store plan chat in project metadata for simplicity or a new table if needed.
+      // For now, let's just update the project row's plan_chat_history jsonb column.
       const project = projects.find(p => p.id === projectId);
-      if (!project) return;
-
-      project.scenes.forEach(scene => {
-          if (scene.content.includes(search)) {
-               const newContent = scene.content.split(search).join(replace);
-               updateSceneContent(scene.id, newContent);
+      if (project) {
+          const updatedHistory = [...(project.planChatHistory || []), message];
+          try {
+             await supabase.from('projects').update({ plan_chat_history: updatedHistory }).eq('id', projectId);
+          } catch(e) { setIsOffline(true); }
+      }
+  };
+  
+  const replaceTextInProject = async (projectId: string, search: string, replace: string) => {
+      setProjects(prev => prev.map(p => {
+          if (p.id === projectId) {
+              // Replace in scenes
+              const newScenes = p.scenes.map(s => ({
+                  ...s,
+                  content: s.content.split(search).join(replace),
+                  title: s.title.split(search).join(replace),
+                  summary: s.summary ? s.summary.split(search).join(replace) : s.summary
+              }));
+              // Replace in characters
+              const newChars = p.characters.map(c => ({
+                  ...c,
+                  name: c.name.split(search).join(replace),
+                  description: c.description.split(search).join(replace)
+              }));
+              
+              return { ...p, scenes: newScenes, characters: newChars };
           }
-      });
+          return p;
+      }));
+      
+      // We don't implement full DB bulk update here for brevity, usually you'd need a backend function
+      // For now, we rely on the user visiting scenes to trigger specific saves or we iterate:
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+          for (const s of project.scenes) {
+              if (s.content.includes(search) || s.title.includes(search)) {
+                  const newContent = s.content.split(search).join(replace);
+                  const newTitle = s.title.split(search).join(replace);
+                  await supabase.from('scenes').update({ content: newContent, title: newTitle }).eq('id', s.id);
+              }
+          }
+          for (const c of project.characters) {
+              if (c.name.includes(search)) {
+                  const newName = c.name.split(search).join(replace);
+                  await supabase.from('characters').update({ name: newName }).eq('id', c.id);
+              }
+          }
+      }
   };
 
   return (
@@ -816,7 +976,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       isOffline,
       setSidebarOpen,
       setRightPanelOpen,
-      setCurrentProject: setCurrentProjectId,
+      setCurrentProject: (id) => { setCurrentProjectId(id); setCurrentSceneId(''); },
       setCurrentSceneId,
       setCurrentStoryId,
       navigateTo,
@@ -838,6 +998,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       importCharactersFromBlueprint,
       addLocation,
       deleteLocation,
+      importLocationsFromBlueprint,
       bulkDeleteItems,
       addEpisode,
       updateEpisode,

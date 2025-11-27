@@ -1,20 +1,54 @@
-
 import React, { useState } from 'react';
-import { Image } from 'lucide-react';
+import { Image, Sparkles, Loader2, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const Locations: React.FC = () => {
-  const { currentProject, addLocation } = useProject();
+  const { currentProject, addLocation, importLocationsFromBlueprint } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<'INT' | 'EXT' | 'MIXED'>('INT');
   const [description, setDescription] = useState('');
+  
+  const [isImporting, setIsImporting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       addLocation({ name, type, description });
       setShowModal(false);
       setName(''); setDescription('');
+      setStatusMsg({ type: 'success', text: 'شوێن زیادکرا.' });
+      setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const handleImport = async () => {
+      const blueprint = currentProject?.blueprint || currentProject?.detailedStory;
+      
+      if (!blueprint || blueprint.trim().length < 50) {
+          setStatusMsg({ 
+              type: 'error', 
+              text: 'تکایە سەرەتا پلانێکی تێروتەسەل دابنێ لە بەشی "پوختە" (Blueprint) بۆ ئەوەی بتوانم شوێنەکان دەربهێنم.' 
+          });
+          return;
+      }
+
+      setIsImporting(true);
+      setStatusMsg(null); 
+
+      try {
+          const count = await importLocationsFromBlueprint(blueprint);
+          
+          if (count > 0) {
+              setStatusMsg({ type: 'success', text: `${count} شوێن بە سەرکەوتوویی لە پلانەکەوە زیادکران!` });
+          } else {
+              setStatusMsg({ type: 'info', text: 'هیچ شوێنێکی نوێ لە پلانەکەدا نەدۆزرایەوە، یان هەموویان پێشتر تۆمارکراون.' });
+          }
+      } catch (error) {
+          console.error(error);
+          setStatusMsg({ type: 'error', text: 'کێشەیەک ڕوویدا لە کاتی شیکردنەوەی پلانەکە.' });
+      } finally {
+          setIsImporting(false);
+      }
   };
 
   if (!currentProject) return <div className="p-8 text-zinc-500">تکایە پڕۆژەیەک هەڵبژێرە.</div>;
@@ -23,14 +57,56 @@ const Locations: React.FC = () => {
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-end mb-6">
-            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">شوێنەکان</h1>
-            <button 
-                onClick={() => setShowModal(true)}
-                className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-3 py-1.5 rounded shadow-sm transition"
-            >
-                زیادکردنی شوێن
-            </button>
+            <div>
+                 <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">شوێنەکان</h1>
+                 <p className="text-sm text-zinc-500 mt-1">شوێنەکانی پڕۆژەی <span className="text-primary-400">{currentProject.title}</span>.</p>
+            </div>
+            <div className="flex gap-2">
+                <button 
+                    onClick={handleImport}
+                    disabled={isImporting}
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2"
+                    title="دروستکردنی شوێنەکان لە پلانەکەوە"
+                >
+                    {isImporting ? (
+                        <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span className="hidden sm:inline">جارێ...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">هاوردەکردن لە پلان</span>
+                        </>
+                    )}
+                </button>
+                <button 
+                    onClick={() => setShowModal(true)}
+                    className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
+                >
+                    زیادکردنی شوێن
+                </button>
+            </div>
         </div>
+
+        {/* Status Message Banner */}
+        {statusMsg && (
+            <div className={`mb-6 p-4 rounded-xl border flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 ${
+                statusMsg.type === 'success' ? 'bg-emerald-900/20 border-emerald-500/30 text-emerald-300' :
+                statusMsg.type === 'error' ? 'bg-red-900/20 border-red-500/30 text-red-300' :
+                'bg-blue-900/20 border-blue-500/30 text-blue-300'
+            }`}>
+                <div className="flex items-center gap-3">
+                    {statusMsg.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : 
+                     statusMsg.type === 'error' ? <AlertTriangle className="w-5 h-5" /> : 
+                     <Sparkles className="w-5 h-5" />}
+                    <span className="text-sm font-medium">{statusMsg.text}</span>
+                </div>
+                <button onClick={() => setStatusMsg(null)} className="p-1 hover:bg-white/10 rounded">
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+        )}
 
         <div className="grid gap-4">
           {currentProject.locations.length === 0 && (
@@ -48,8 +124,7 @@ const Locations: React.FC = () => {
                 <h3 className="text-sm font-medium text-zinc-200">{loc.name}</h3>
                 <p className="text-xs text-zinc-500 mt-1 leading-relaxed max-w-lg">{loc.description}</p>
                 <div className="flex gap-2 mt-3">
-                    <span className="text-xxs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{loc.type === 'INT' ? 'ناوەوە' : loc.type === 'EXT' ? 'دەرەوە' : 'تێکەڵ'}</span>
-                    <span className="text-xxs bg-zinc-800 px-2 py-1 rounded text-zinc-400">سێت</span>
+                    <span className="text-xxs bg-zinc-800 px-2 py-1 rounded text-zinc-400 border border-zinc-700">{loc.type === 'INT' ? 'ناوەوە' : loc.type === 'EXT' ? 'دەرەوە' : 'تێکەڵ'}</span>
                 </div>
                 </div>
             </div>
