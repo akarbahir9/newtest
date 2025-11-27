@@ -250,11 +250,20 @@ export const generateAssistantResponse = async (
 
     let systemInstruction = `You are Zoer, an elite creative writing AI. You speak and write primarily in Kurdish (Sorani).
     
-    === GOAL TRACKER & MONITOR ===
-    Check the [Current Active Goal] in the context.
-    - If the user sends a new chunk of text, COMPARE it against the goal/target.
-    - If the goal is met or the page count target is reached, append a specific note: "✅ ئامانجی ئەم بەشە بەدەست هات."
-    - If the writing is drifting away from the goal, gently nudge the user back.
+    === GOAL TRACKER & PACING ENGINE ===
+    Check the [Current Active Goal] and [Length Target] in the context.
+    
+    **CRITICAL LENGTH INSTRUCTION:**
+    You must rigorously adhere to the "Length Target" or "Page Target".
+    - If the target is LARGE (e.g., 20 pages, 5000 words) and the current word count is LOW:
+      1. **DO NOT RESOLVE THE SCENE**. Do not rush to the end.
+      2. **SLOW DOWN PACING**. Focus on microscopic details, sensory experiences, internal monologues, and environmental descriptions.
+      3. Write in "Slow Motion". Expand every action.
+      4. If asked to write the chapter, write *Chunk 1 of X*. Do not try to fit the whole chapter in one response if it's meant to be long.
+      5. Insert meaningful dialogue and subtext to fill the space effectively.
+    
+    - If the target is met:
+      1. Wrap up the scene/chapter naturally.
     `;
 
     if (isNovel) {
@@ -347,7 +356,21 @@ export const generateAssistantResponse = async (
     
     --- UNIVERSAL CAPABILITIES ---
     - **Tools:** Use 'update_scene', 'create_scene', 'create_character' etc. whenever the user asks to change the project data.
-    - **Editing:** When asked to "rewrite" or "fix", output the FULL HTML for the scene using the correct tags for the current Mode.
+    - **WRITING & GENERATION (IMPORTANT):** If the user asks you to write, rewrite, draft, or continue any part of the story (scene, chapter, or dialogue):
+      1. You **MUST** wrap the generated story content inside <screenplay>...</screenplay> tags.
+      2. Inside these tags, you must use the STRICT HTML format defined above for the current mode (Novel HTML or Screenplay HTML).
+      3. Keep any conversational text or explanations OUTSIDE the tags.
+      
+      Example Response:
+      Here is the draft for the scene:
+      <screenplay>
+      <div class="sp-slug">INT. OFFICE - DAY</div>
+      <div class="sp-action">Joe sits at his desk.</div>
+      <div class="sp-character">JOE</div>
+      <div class="sp-dialogue">"I need to finish this."</div>
+      </screenplay>
+    
+    - **Editing:** When asked to "rewrite" or "fix", output the FULL HTML for the scene wrapped in <screenplay> tags as well.
     
     Be creative, bold, and strictly adhere to the formatting rules above.
     `;
@@ -640,7 +663,8 @@ export const generateAutocomplete = async (
       pov?: string,
       sceneGoal?: string, 
       pageTarget?: string,
-      actGoal?: string 
+      actGoal?: string,
+      currentWordCount?: number 
   }
 ): Promise<string> => {
   try {
@@ -653,6 +677,20 @@ export const generateAutocomplete = async (
     const isNovel = context.type === 'Novel';
     const isAd = context.type === 'Advertisement';
     const povInstruction = context.pov ? `POINT OF VIEW: ${context.pov}` : '';
+
+    const wordCount = context.currentWordCount || 0;
+    const target = parseInt(context.pageTarget || '0', 10) * 250; // Approx words/page
+    const isTargetHigh = target > 0 && wordCount < (target * 0.8);
+
+    let pacingInstruction = "";
+    if (isTargetHigh) {
+        pacingInstruction = `
+        PACING INSTRUCTION: SLOW DOWN.
+        - The target length is high and we are early. 
+        - Do not rush the plot. 
+        - Describe microscopic details, sensory inputs, or internal thoughts.
+        - Do not resolve the scene yet.`;
+    }
 
     const prompt = `You are a creative writing assistant for Kurdish (Sorani).
     TASK: Continue the story text naturally.
@@ -667,6 +705,8 @@ export const generateAutocomplete = async (
     - Current Act Goal: ${context.actGoal || 'N/A'}
     - Current Scene Goal: ${context.sceneGoal || 'Advance the plot'}
     - Length Target: ${context.pageTarget || 'Standard'} (Adjust pacing based on this)
+    - Current Word Count: ${wordCount}
+    ${pacingInstruction}
     - Overall Goal: ${context.goal}
     
     INPUT TEXT (End of current scene):

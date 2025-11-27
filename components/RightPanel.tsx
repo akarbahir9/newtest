@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
@@ -16,6 +14,12 @@ const generateId = () => {
         return crypto.randomUUID();
     }
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+};
+
+// --- Helper to count words ---
+const countWords = (html: string) => {
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return text.length > 0 ? text.split(/\s+/).length : 0;
 };
 
 // --- Blueprint Parser Helper ---
@@ -237,6 +241,8 @@ const RightPanel: React.FC = () => {
       const locationDetails = currentProject?.locations.map(l => 
           `- ID: "${l.id}" | Name: "${l.name}" | Type: ${l.type} | Desc: ${l.description}`
       ).join('\n');
+      
+      const currentWordCount = countWords(scene?.content || '');
 
       return `
         Project: ${currentProject?.title || 'Untitled'}
@@ -256,6 +262,7 @@ const RightPanel: React.FC = () => {
         Matched Plan Section: ${planTitle || 'Unknown'}
         Goal: ${activeGoal || 'None detected'}
         Length Target: ${activeTarget || 'None detected'}
+        Current Scene Word Count: ${currentWordCount}
 
         === CHARACTERS (IDs are UUIDs) ===
         ${charDetails || 'No characters defined.'}

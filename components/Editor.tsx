@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { Film, Undo, Redo, ZoomIn, ZoomOut, MapPin, User, MessageSquare, AlignLeft, ArrowRight, Parentheses, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
@@ -67,9 +65,10 @@ interface PageProps {
     projectMetadata: any;
     zoomLevel: number;
     sceneNumber: number;
+    currentWordCount: number;
 }
 
-const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode, projectMetadata, zoomLevel, sceneNumber }: PageProps) => {
+const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnderflow, focusRequest, isNovelMode, projectMetadata, zoomLevel, sceneNumber, currentWordCount }: PageProps) => {
     const pageRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
     const ghostTextRef = useRef<HTMLSpanElement | null>(null);
@@ -162,7 +161,8 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
             characters: projectMetadata.characters?.map((c: any) => `${c.name} (${c.role})`).join('; '),
             sceneGoal: goal || undefined,
             pageTarget: target || undefined,
-            actGoal: actGoal || undefined
+            actGoal: actGoal || undefined,
+            currentWordCount: currentWordCount
         });
 
         // 5. Validate State (User hasn't typed anything else)
@@ -488,6 +488,15 @@ const Editor: React.FC = () => {
   
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   const isNovelMode = currentProject?.type === 'Novel';
+
+  // Calculate current total word count for the entire scene (across all pages)
+  const calculateTotalWordCount = () => {
+    return pages.reduce((total, page) => {
+        const text = page.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        return total + (text.length > 0 ? text.split(/\s+/).length : 0);
+    }, 0);
+  };
+  const currentTotalWordCount = calculateTotalWordCount();
 
   // Navigation Logic
   const scenes = currentProject?.scenes || [];
@@ -970,6 +979,7 @@ const Editor: React.FC = () => {
                                 projectMetadata={currentProject || {}}
                                 zoomLevel={zoom}
                                 sceneNumber={scene.number}
+                                currentWordCount={currentTotalWordCount}
                              />
                         </div>
                     </div>
