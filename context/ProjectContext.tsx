@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Project, Scene, Character, Location, ViewType, ProjectType, ProjectFormat, Episode, ChatMessage, Relationship, Story, StoryData } from '../types';
 import { supabase } from '../lib/supabase';
-import { extractCharactersFromText, extractLocationsFromText } from '../services/geminiService';
+import { extractCharactersFromText, extractLocationsFromText, generateCharacterVisuals, generateLocationVisuals } from '../services/geminiService';
 
 // Robust ID Generator
 const generateId = () => {
@@ -195,7 +195,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 description: c.description,
                 traits: c.traits,
                 relationships: c.relationships || [],
-                arcCompletion: c.arc_completion
+                arcCompletion: c.arc_completion,
+                imageUrl: c.image_url,
+                avatarUrl: c.avatar_url // Map from DB
             })),
 
             locations: (p.locations || []).map((l: any) => ({
@@ -203,7 +205,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 name: l.name,
                 type: l.type,
                 description: l.description,
-                sensoryDetails: l.sensory_details
+                sensoryDetails: l.sensory_details,
+                imageUrl: l.image_url
             })),
 
             chatHistory: (p.chatHistory || []).map((msg: any) => ({
@@ -616,15 +619,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }));
 
       try {
-          await supabase.from('characters').insert({
+          const payload: any = {
               project_id: currentProjectId,
               name: newChar.name,
               role: newChar.role,
               archetype: newChar.archetype,
               description: newChar.description,
               traits: newChar.traits,
-              arc_completion: 0
-          });
+              arc_completion: 0,
+              image_url: newChar.imageUrl
+          };
+          
+          if (newChar.avatarUrl) {
+              payload.avatar_url = newChar.avatarUrl;
+          }
+
+          await supabase.from('characters').insert(payload);
       } catch (e) { setIsOffline(true); }
       
       return newId;
@@ -639,15 +649,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           return p;
       }));
       try {
-          await supabase.from('characters').update({
+          const payload: any = {
               name: char.name,
               role: char.role,
               archetype: char.archetype,
               description: char.description,
               traits: char.traits,
               relationships: char.relationships,
-              arc_completion: char.arcCompletion
-          }).eq('id', char.id);
+              arc_completion: char.arcCompletion,
+              image_url: char.imageUrl
+          };
+          if (char.avatarUrl) {
+              payload.avatar_url = char.avatarUrl;
+          }
+          await supabase.from('characters').update(payload).eq('id', char.id);
       } catch (e) { setIsOffline(true); }
   };
 
@@ -673,15 +688,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const extracted = await extractCharactersFromText(textToAnalyze);
       let addedCount = 0;
       
-      // 1. Map existing names to IDs for relationship resolution
       const nameToIdMap = new Map<string, string>();
       project.characters.forEach(c => {
           if (c.name) nameToIdMap.set(c.name.trim().toLowerCase(), c.id);
       });
 
       const newlyCreatedChars: { id: string, data: any }[] = [];
+      const pendingImageGens: any[] = [];
 
-      // 2. Create Characters
+      // 1. Create Characters Text Data (Fast UI Update)
       for (const c of extracted) {
           if (!c.name) continue;
           const normalizedName = c.name.trim().toLowerCase();
@@ -701,17 +716,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           if (newId) {
               nameToIdMap.set(normalizedName, newId);
               newlyCreatedChars.push({ id: newId, data: c });
+              pendingImageGens.push({ id: newId, name: c.name, description: c.description, role: c.role });
               addedCount++;
           }
       }
 
-      // 3. Link Relationships for Newly Created Characters
+      // 2. Link Relationships for Newly Created Characters
       for (const item of newlyCreatedChars) {
           const { id, data } = item;
-          
           if (data.relationships && Array.isArray(data.relationships) && data.relationships.length > 0) {
               const relationships: Relationship[] = [];
-              
               for (const rel of data.relationships) {
                   if (rel.targetName) {
                       const targetId = nameToIdMap.get(rel.targetName.trim().toLowerCase());
@@ -724,21 +738,70 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                       }
                   }
               }
-
               if (relationships.length > 0) {
-                  await updateCharacter({
-                      id: id,
-                      name: data.name,
-                      role: data.role || 'Supporting',
-                      archetype: data.archetype || '',
-                      description: data.description || '',
-                      traits: data.traits || [],
-                      arcCompletion: 0,
-                      relationships: relationships
-                  });
+                  // We update state here directly but ideally should use updateCharacter
+                  // Using a quick patch update since image gen will happen later
+                   setProjects(prev => prev.map(p => {
+                       if (p.id === currentProjectId) {
+                           return { 
+                               ...p, 
+                               characters: p.characters.map(c => c.id === id ? { ...c, relationships } : c) 
+                           };
+                       }
+                       return p;
+                   }));
+                   await supabase.from('characters').update({ relationships }).eq('id', id);
               }
           }
       }
+
+      // 3. Process Image Generation with Batched Concurrency
+      const processImages = async () => {
+          const BATCH_SIZE = 2; // Process 2 chars at a time to prevent rate limits
+          for (let i = 0; i < pendingImageGens.length; i += BATCH_SIZE) {
+              const batch = pendingImageGens.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(async (char) => {
+                  // Generate both Reference Sheet and Avatar
+                  const visuals = await generateCharacterVisuals(char.name, char.description, char.role);
+                  
+                  if (visuals.refSheet || visuals.avatar) {
+                      // Save to DB
+                      const updates: any = {};
+                      if (visuals.refSheet) updates.image_url = visuals.refSheet;
+                      if (visuals.avatar) updates.avatar_url = visuals.avatar;
+
+                      try {
+                          await supabase.from('characters').update(updates).eq('id', char.id);
+                      } catch (dbErr) {
+                          console.warn("Could not save avatar/image to DB, possibly column missing", dbErr);
+                      }
+                      
+                      // Update Context State
+                      setProjects(prev => prev.map(p => {
+                        if (p.id === currentProjectId) {
+                            return {
+                                ...p,
+                                characters: p.characters.map(c => {
+                                    if (c.id === char.id) {
+                                        return { 
+                                            ...c, 
+                                            imageUrl: visuals.refSheet || c.imageUrl,
+                                            avatarUrl: visuals.avatar || c.avatarUrl
+                                        };
+                                    }
+                                    return c;
+                                })
+                            };
+                        }
+                        return p;
+                      }));
+                  }
+              }));
+          }
+      };
+
+      // Run image generation in background but don't block return
+      processImages();
 
       return addedCount;
   };
@@ -759,7 +822,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               name: newLoc.name,
               type: newLoc.type,
               description: newLoc.description,
-              sensory_details: newLoc.sensoryDetails
+              sensory_details: newLoc.sensoryDetails,
+              image_url: newLoc.imageUrl
           });
       } catch (e) { setIsOffline(true); }
   };
@@ -787,6 +851,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       let addedCount = 0;
       
       const existingNames = new Set(project.locations.map(l => l.name.trim().toLowerCase()));
+      const pendingImageGens: any[] = [];
 
       for (const loc of extracted) {
           if (!loc.name) continue;
@@ -796,15 +861,64 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               continue; 
           }
 
-          await addLocation({
-              name: loc.name,
-              type: loc.type || 'MIXED',
-              description: loc.description || ''
+          // Add location first (generates ID internally but we need it for image update)
+          const newId = generateId();
+          const newLoc: Location = { 
+              id: newId, 
+              name: loc.name, 
+              type: loc.type || 'MIXED', 
+              description: loc.description || '' 
+          };
+
+          setProjects(prev => prev.map(p => {
+              if (p.id === currentProjectId) {
+                  return { ...p, locations: [...p.locations, newLoc] };
+              }
+              return p;
+          }));
+
+          // Async DB Insert
+          supabase.from('locations').insert({
+              project_id: currentProjectId,
+              id: newId,
+              name: newLoc.name,
+              type: newLoc.type,
+              description: newLoc.description
           });
           
           existingNames.add(normalizedName);
           addedCount++;
+          pendingImageGens.push({ id: newId, name: loc.name, description: loc.description, type: loc.type });
       }
+
+      // Process Images with Concurrency
+      const processImages = async () => {
+          const BATCH_SIZE = 2; 
+          for (let i = 0; i < pendingImageGens.length; i += BATCH_SIZE) {
+              const batch = pendingImageGens.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(async (loc) => {
+                  const imageUrl = await generateLocationVisuals(loc.name, loc.description, loc.type || 'MIXED');
+                  if (imageUrl) {
+                      // Save to DB
+                      await supabase.from('locations').update({ image_url: imageUrl }).eq('id', loc.id);
+                      
+                      // Update State
+                      setProjects(prev => prev.map(p => {
+                        if (p.id === currentProjectId) {
+                            return {
+                                ...p,
+                                locations: p.locations.map(l => l.id === loc.id ? { ...l, imageUrl } : l)
+                            };
+                        }
+                        return p;
+                      }));
+                  }
+              }));
+          }
+      };
+
+      processImages();
+
       return addedCount;
   };
 

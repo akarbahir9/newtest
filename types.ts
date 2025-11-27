@@ -111,6 +111,8 @@ export interface Character {
     traits: string[];
     description: string;
     relationships: Relationship[];
+    imageUrl?: string; // Base64 image data (Reference Sheet / Banner)
+    avatarUrl?: string; // Base64 image data (Portrait / Avatar)
 }
 
 export interface Location {
@@ -119,4 +121,5 @@ export interface Location {
     type: 'INT' | 'EXT' | 'MIXED';
     description: string;
     sensoryDetails?: string[];
+    imageUrl?: string; // Base64 image data
 }

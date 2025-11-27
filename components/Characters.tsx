@@ -1,7 +1,5 @@
-
-
 import React, { useState } from 'react';
-import { Edit2, Save, Trash2, Plus, ArrowRightLeft, Sparkles, X, CheckCircle2, AlertTriangle, Loader2, Circle, CheckSquare, Square } from 'lucide-react';
+import { Edit2, Save, Trash2, Plus, ArrowRightLeft, Sparkles, X, CheckCircle2, AlertTriangle, Loader2, Circle, CheckSquare, Square, ImageIcon, Eye } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { Character, Relationship } from '../types';
 
@@ -10,6 +8,7 @@ const Characters: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingChar, setEditingChar] = useState<Character | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -54,14 +53,14 @@ const Characters: React.FC = () => {
       }
 
       setIsImporting(true);
-      setStatusMsg(null); // Clear previous messages
+      setStatusMsg({ type: 'info', text: 'خەریکی شیکردنەوەی پلان و دروستکردنی وێنەی کاراکتەرەکانم...' }); 
 
       try {
           // Pass blueprint explicitly to avoid stale state
           const count = await importCharactersFromBlueprint(blueprint);
           
           if (count > 0) {
-              setStatusMsg({ type: 'success', text: `${count} کاراکتەر بە سەرکەوتوویی لە پلانەکەوە زیادکران!` });
+              setStatusMsg({ type: 'success', text: `${count} کاراکتەر زیادکران. وێنەکان لە پاشبنەما (Background) دروست دەکرێن.` });
           } else {
               setStatusMsg({ type: 'info', text: 'هیچ کاراکتەرێکی نوێ لە پلانەکەدا نەدۆزرایەوە، یان هەموویان پێشتر تۆمارکراون.' });
           }
@@ -190,7 +189,7 @@ const Characters: React.FC = () => {
                 {isImporting ? (
                     <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span className="hidden sm:inline">جارێ...</span>
+                        <span className="hidden sm:inline">دروستکردن...</span>
                     </>
                 ) : (
                     <>
@@ -261,11 +260,50 @@ const Characters: React.FC = () => {
                             <Edit2 className="w-3 h-3" />
                         </button>
                     </div>
-                    <div className="h-24 bg-gradient-to-bl from-zinc-800 to-zinc-900 relative">
-                        <div className={`absolute bottom-0 left-4 transform translate-y-1/2 w-12 h-12 rounded-full border-4 border-zinc-900 flex items-center justify-center font-bold text-sm shadow-lg ${char.role === 'Protagonist' ? 'bg-zinc-200 text-zinc-900' : 'bg-primary-900 text-primary-200'}`}>
-                            {char.name.substring(0, 2).toUpperCase()}
+
+                    {/* Character Image Header (Reference Sheet) */}
+                    <div 
+                        className="h-28 relative bg-zinc-800 group/image"
+                        onClick={(e) => {
+                            if (char.imageUrl) {
+                                e.stopPropagation();
+                                setViewingImage(char.imageUrl);
+                            }
+                        }}
+                    >
+                        {char.imageUrl ? (
+                            <>
+                                <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center pointer-events-none">
+                                    <Eye className="w-6 h-6 text-white/80 drop-shadow-lg" />
+                                </div>
+                            </>
+                        ) : (
+                            <div className="w-full h-full bg-gradient-to-bl from-zinc-800 to-zinc-900 flex items-center justify-center text-zinc-700">
+                                <ImageIcon className="w-8 h-8 opacity-20" />
+                            </div>
+                        )}
+                        
+                        {/* Avatar Circle (Portrait) */}
+                        <div 
+                            className={`absolute bottom-0 left-4 transform translate-y-1/2 w-12 h-12 rounded-full border-4 border-zinc-900 flex items-center justify-center font-bold text-sm shadow-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform z-20 ${char.avatarUrl || char.imageUrl ? 'bg-zinc-900' : (char.role === 'Protagonist' ? 'bg-zinc-200 text-zinc-900' : 'bg-primary-900 text-primary-200')}`}
+                            onClick={(e) => {
+                                if (char.avatarUrl) {
+                                    e.stopPropagation();
+                                    setViewingImage(char.avatarUrl);
+                                }
+                            }}
+                        >
+                             {char.avatarUrl ? (
+                                <img src={char.avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                             ) : char.imageUrl ? (
+                                <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover" />
+                             ) : (
+                                char.name.substring(0, 2).toUpperCase()
+                             )}
                         </div>
                     </div>
+
                     <div className="pt-8 pb-4 px-4">
                         <div className="flex justify-between items-start">
                             <div>
@@ -377,18 +415,56 @@ const Characters: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                      {/* Basic Info */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                         <div>
-                             <label className="block text-xs text-zinc-500 mb-1">ناو</label>
-                             <input value={editingChar.name} onChange={e => setEditingChar({...editingChar, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-xs text-zinc-500 mb-1">ئارکیتایپ</label>
-                             <input value={editingChar.archetype} onChange={e => setEditingChar({...editingChar, archetype: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
-                         </div>
+                      
+                      {/* Image Preview in Edit Modal */}
+                      <div className="flex gap-6 items-start">
+                          <div 
+                              className="w-24 h-24 bg-zinc-800 rounded-full flex-shrink-0 overflow-hidden border-2 border-zinc-700 relative group cursor-pointer shadow-lg"
+                              onClick={() => editingChar.avatarUrl && setViewingImage(editingChar.avatarUrl)}
+                              title="Character Avatar"
+                          >
+                              {editingChar.avatarUrl ? (
+                                  <>
+                                    <img src={editingChar.avatarUrl} alt={editingChar.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                        <Eye className="w-6 h-6 text-white" />
+                                    </div>
+                                  </>
+                              ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-zinc-800"><ImageIcon /></div>
+                              )}
+                          </div>
+                          
+                          <div className="flex-1 space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs text-zinc-500 mb-1">ناو</label>
+                                        <input value={editingChar.name} onChange={e => setEditingChar({...editingChar, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-zinc-500 mb-1">ئارکیتایپ</label>
+                                        <input value={editingChar.archetype} onChange={e => setEditingChar({...editingChar, archetype: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 focus:border-primary-500 outline-none" />
+                                    </div>
+                                </div>
+                          </div>
                       </div>
                       
+                      {/* Reference Sheet Preview */}
+                      {editingChar.imageUrl && (
+                          <div>
+                              <label className="block text-xs text-zinc-500 mb-2">Character Reference Sheet</label>
+                              <div 
+                                  className="w-full h-40 bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700 relative group cursor-pointer"
+                                  onClick={() => setViewingImage(editingChar.imageUrl!)}
+                              >
+                                  <img src={editingChar.imageUrl} alt="Reference Sheet" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                      <Eye className="w-8 h-8 text-white drop-shadow-md" />
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+
                       <div>
                           <label className="block text-xs text-zinc-500 mb-1">وەسف</label>
                           <textarea value={editingChar.description} onChange={e => setEditingChar({...editingChar, description: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-200 outline-none h-20 resize-none" />
@@ -473,6 +549,26 @@ const Characters: React.FC = () => {
                           <Save className="w-3.5 h-3.5" /> پاشەکەوتکردن
                       </button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* IMAGE VIEWER MODAL */}
+      {viewingImage && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in" onClick={() => setViewingImage(null)}>
+              <div className="relative max-w-4xl max-h-[90vh] w-full p-4 flex items-center justify-center">
+                   <button 
+                       onClick={() => setViewingImage(null)}
+                       className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-white/20 transition z-50"
+                   >
+                       <X className="w-6 h-6" />
+                   </button>
+                   <img 
+                       src={viewingImage} 
+                       alt="Full view" 
+                       className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                       onClick={(e) => e.stopPropagation()} // Prevent close on image click
+                   />
               </div>
           </div>
       )}

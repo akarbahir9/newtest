@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Sparkles, Loader2, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { Image, Sparkles, Loader2, CheckCircle2, AlertTriangle, X, CheckSquare, Square, Trash2, Eye } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 
 const Locations: React.FC = () => {
-  const { currentProject, addLocation, importLocationsFromBlueprint } = useProject();
+  const { currentProject, addLocation, deleteLocation, bulkDeleteItems, importLocationsFromBlueprint, showConfirmation } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<'INT' | 'EXT' | 'MIXED'>('INT');
@@ -11,6 +11,10 @@ const Locations: React.FC = () => {
   
   const [isImporting, setIsImporting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+  
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -33,13 +37,13 @@ const Locations: React.FC = () => {
       }
 
       setIsImporting(true);
-      setStatusMsg(null); 
+      setStatusMsg({ type: 'info', text: 'خەریکی شیکردنەوەی پلان و دروستکردنی وێنەی شوێنەکانم...' });
 
       try {
           const count = await importLocationsFromBlueprint(blueprint);
           
           if (count > 0) {
-              setStatusMsg({ type: 'success', text: `${count} شوێن بە سەرکەوتوویی لە پلانەکەوە زیادکران!` });
+              setStatusMsg({ type: 'success', text: `${count} شوێن زیادکران. وێنەکان لە پاشبنەما (Background) دروست دەکرێن.` });
           } else {
               setStatusMsg({ type: 'info', text: 'هیچ شوێنێکی نوێ لە پلانەکەدا نەدۆزرایەوە، یان هەموویان پێشتر تۆمارکراون.' });
           }
@@ -51,27 +55,89 @@ const Locations: React.FC = () => {
       }
   };
 
+  const handleDeleteSingle = (id: string, name: string) => {
+      showConfirmation(`ئایا دڵنیایت دەتەوێت شوێنی "${name}" بسڕیتەوە؟`, () => {
+          deleteLocation(id);
+          if (selectedIds.has(id)) {
+              const newSet = new Set(selectedIds);
+              newSet.delete(id);
+              setSelectedIds(newSet);
+          }
+          setStatusMsg({ type: 'success', text: 'شوێن سڕایەوە.' });
+          setTimeout(() => setStatusMsg(null), 3000);
+      });
+  };
+
+  const toggleSelection = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      const newSet = new Set(selectedIds);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setSelectedIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+      if (!currentProject) return;
+      if (selectedIds.size === currentProject.locations.length) {
+          setSelectedIds(new Set());
+      } else {
+          setSelectedIds(new Set(currentProject.locations.map(l => l.id)));
+      }
+  };
+
+  const handleBulkDelete = () => {
+      if (selectedIds.size === 0) return;
+      showConfirmation(`ئایا دڵنیایت دەتەوێت ${selectedIds.size} شوێن بسڕیتەوە؟`, () => {
+          const items = Array.from(selectedIds).map(id => ({ id, type: 'location' as const }));
+          bulkDeleteItems(items);
+          setSelectedIds(new Set());
+          setStatusMsg({ type: 'success', text: `${items.length} شوێن سڕانەوە.` });
+          setTimeout(() => setStatusMsg(null), 3000);
+      });
+  };
+
   if (!currentProject) return <div className="p-8 text-zinc-500">تکایە پڕۆژەیەک هەڵبژێرە.</div>;
+
+  const allSelected = currentProject.locations.length > 0 && selectedIds.size === currentProject.locations.length;
 
   return (
     <div className="view-section active flex-1 p-4 md:p-8 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-end mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-6 gap-4">
             <div>
                  <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">شوێنەکان</h1>
                  <p className="text-sm text-zinc-500 mt-1">شوێنەکانی پڕۆژەی <span className="text-primary-400">{currentProject.title}</span>.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end">
+                <button 
+                    onClick={toggleSelectAll}
+                    className={`text-xs font-medium px-3 py-2 rounded-lg border transition flex items-center gap-2 ${allSelected ? 'bg-primary-900/20 border-primary-500/30 text-primary-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'}`}
+                    title="دیاریکردنی هەمووی"
+                >
+                    {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">دیاریکردن</span>
+                </button>
+
+                {selectedIds.size > 0 && (
+                    <button 
+                        onClick={handleBulkDelete}
+                        className="bg-red-600 hover:bg-red-500 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm transition flex-shrink-0 flex items-center gap-2 animate-in fade-in zoom-in"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">سڕینەوەی ({selectedIds.size})</span>
+                    </button>
+                )}
+
                 <button 
                     onClick={handleImport}
                     disabled={isImporting}
-                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2"
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm transition flex-shrink-0 flex items-center gap-2"
                     title="دروستکردنی شوێنەکان لە پلانەکەوە"
                 >
                     {isImporting ? (
                         <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span className="hidden sm:inline">جارێ...</span>
+                            <span className="hidden sm:inline">دروستکردن...</span>
                         </>
                     ) : (
                         <>
@@ -82,7 +148,7 @@ const Locations: React.FC = () => {
                 </button>
                 <button 
                     onClick={() => setShowModal(true)}
-                    className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
+                    className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium px-4 py-2 rounded-lg shadow-sm transition flex-shrink-0 flex items-center gap-2"
                 >
                     زیادکردنی شوێن
                 </button>
@@ -115,20 +181,69 @@ const Locations: React.FC = () => {
                </div>
           )}
 
-          {currentProject.locations.map(loc => (
-            <div key={loc.id} className="flex flex-col sm:flex-row gap-4 p-4 bg-zinc-900 border border-zinc-800 rounded-lg">
-                <div className="w-full sm:w-24 h-24 bg-zinc-800 rounded flex items-center justify-center text-zinc-600 flex-shrink-0">
-                <Image className="w-8 h-8" />
+          {currentProject.locations.map(loc => {
+            const isSelected = selectedIds.has(loc.id);
+            return (
+                <div 
+                    key={loc.id} 
+                    className={`
+                        flex flex-col sm:flex-row gap-4 p-4 bg-zinc-900 border rounded-lg group relative transition-colors
+                        ${isSelected ? 'border-primary-500 ring-1 ring-primary-500/30 bg-primary-900/10' : 'border-zinc-800 hover:border-zinc-700'}
+                    `}
+                    onClick={() => { /* Optional: Open Edit Modal in Future */ }}
+                >
+                    {/* Checkbox */}
+                    <div 
+                        className="absolute top-2 left-2 z-20 p-2 -m-2 cursor-pointer"
+                        onClick={(e) => toggleSelection(e, loc.id)}
+                    >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-600 border-primary-500' : 'bg-zinc-950/80 border-zinc-600 hover:border-zinc-400'}`}>
+                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                    </div>
+
+                    {/* Delete Button (Overlay) */}
+                    <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition z-10">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSingle(loc.id, loc.name); }}
+                            className="p-1.5 bg-zinc-950/80 backdrop-blur-sm rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-900/20 border border-zinc-700 transition"
+                            title="سڕینەوە"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div 
+                        className="w-full sm:w-32 h-32 sm:h-24 bg-zinc-800 rounded flex items-center justify-center text-zinc-600 flex-shrink-0 overflow-hidden relative group/image cursor-pointer"
+                        onClick={(e) => {
+                             if (loc.imageUrl) {
+                                 e.stopPropagation();
+                                 setViewingImage(loc.imageUrl);
+                             }
+                        }}
+                    >
+                        {loc.imageUrl ? (
+                            <>
+                                <img src={loc.imageUrl} alt={loc.name} className="w-full h-full object-cover transition-transform duration-500 group-hover/image:scale-110" />
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center pointer-events-none">
+                                    <Eye className="w-6 h-6 text-white/80 drop-shadow-lg" />
+                                </div>
+                            </>
+                        ) : (
+                            <Image className="w-8 h-8 opacity-20" />
+                        )}
+                        {loc.type && <div className="absolute top-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded backdrop-blur-sm pointer-events-none">{loc.type}</div>}
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-sm font-medium text-zinc-200">{loc.name}</h3>
+                        <p className="text-xs text-zinc-500 mt-1 leading-relaxed max-w-lg">{loc.description}</p>
+                        <div className="flex gap-2 mt-3">
+                            <span className="text-xxs bg-zinc-800 px-2 py-1 rounded text-zinc-400 border border-zinc-700">{loc.type === 'INT' ? 'ناوەوە' : loc.type === 'EXT' ? 'دەرەوە' : 'تێکەڵ'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                <h3 className="text-sm font-medium text-zinc-200">{loc.name}</h3>
-                <p className="text-xs text-zinc-500 mt-1 leading-relaxed max-w-lg">{loc.description}</p>
-                <div className="flex gap-2 mt-3">
-                    <span className="text-xxs bg-zinc-800 px-2 py-1 rounded text-zinc-400 border border-zinc-700">{loc.type === 'INT' ? 'ناوەوە' : loc.type === 'EXT' ? 'دەرەوە' : 'تێکەڵ'}</span>
-                </div>
-                </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -162,6 +277,26 @@ const Locations: React.FC = () => {
                       <button type="button" onClick={() => setShowModal(false)} className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-2">پاشگەزبوونەوە</button>
                       <button type="submit" onClick={handleSubmit} className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium px-4 py-2 rounded">زیادکردن</button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* IMAGE VIEWER MODAL */}
+      {viewingImage && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in" onClick={() => setViewingImage(null)}>
+              <div className="relative max-w-4xl max-h-[90vh] w-full p-4 flex items-center justify-center">
+                   <button 
+                       onClick={() => setViewingImage(null)}
+                       className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-white/20 transition z-50"
+                   >
+                       <X className="w-6 h-6" />
+                   </button>
+                   <img 
+                       src={viewingImage} 
+                       alt="Full view" 
+                       className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                       onClick={(e) => e.stopPropagation()} // Prevent close on image click
+                   />
               </div>
           </div>
       )}

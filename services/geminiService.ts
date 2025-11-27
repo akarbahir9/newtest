@@ -833,3 +833,85 @@ export const generateStoryboardImage = async (sceneContext: string): Promise<str
     return null;
   }
 };
+
+export const generateCharacterVisuals = async (name: string, description: string, role: string): Promise<{ refSheet: string | null, avatar: string | null }> => {
+  try {
+    const refPrompt = `Character Design Reference Sheet: "${name}", ${role}. ${description}.
+    Layout: Three distinct views (Front, Side, Back) arranged horizontally. Full body.
+    Style: Masterpiece Concept Art, 8k Resolution, Unreal Engine 5 Render style, detailed textures.
+    Background: Simple, non-distracting gradient.`;
+    
+    const avatarPrompt = `Cinematic Character Portrait: "${name}", ${role}. ${description}.
+    Composition: Head and shoulders, facing forward.
+    Style: Masterpiece Concept Art, 8k Resolution, highly detailed face and eyes.
+    Lighting: Dramatic studio lighting.`;
+
+    const [refResponse, avatarResponse] = await Promise.all([
+         ai.models.generateContent({
+              model: 'gemini-2.5-flash-image',
+              contents: { parts: [{ text: refPrompt }] },
+              config: { imageConfig: { aspectRatio: "16:9" } }
+         }),
+         ai.models.generateContent({
+              model: 'gemini-2.5-flash-image',
+              contents: { parts: [{ text: avatarPrompt }] },
+              config: { imageConfig: { aspectRatio: "1:1" } }
+         })
+    ]);
+
+    let refSheet = null;
+    let avatar = null;
+
+    for (const part of refResponse.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+            refSheet = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+    }
+
+    for (const part of avatarResponse.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+            avatar = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+    }
+
+    return { refSheet, avatar };
+
+  } catch (error) {
+    console.error("Character Image Gen Error:", error);
+    return { refSheet: null, avatar: null };
+  }
+};
+
+export const generateLocationVisuals = async (name: string, description: string, type: string): Promise<string | null> => {
+  try {
+    const prompt = `A cinematic environment concept art sheet for the location "${name}" (${type}).
+    DESCRIPTION: ${description}.
+    
+    The image MUST be a composition showing:
+    1. A Wide Establishing Shot (Main focus)
+    2. An Interior or Detail Shot (Inset or side panel)
+    3. Different lighting conditions (Day/Night split if applicable)
+    
+    Style: High-End Concept Art, 4K, Atmospheric, Detailed.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: prompt }] },
+      config: {
+        imageConfig: {
+            aspectRatio: "16:9" // Wide for landscapes
+        }
+      }
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Location Image Gen Error:", error);
+    return null;
+  }
+};
