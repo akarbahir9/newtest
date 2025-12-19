@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  // Added ArrowUpRight to the imports
   FileCheck, Replace, PanelLeft, Loader2, RotateCcw, Target, Scale, Video, ExternalLink, ArrowUpRight
 } from 'lucide-react';
 import { generateAssistantResponse, generateStoryboardImage, generateSceneVideo } from '../services/geminiService';
@@ -33,7 +32,6 @@ const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: str
     let planTitle = null;
     let actGoal = null;
     
-    // 1. Find the section for this specific Scene/Chapter
     const headerRegex = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
     const match = blueprint.match(headerRegex);
 
@@ -64,8 +62,6 @@ const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: str
     return { goal, target, planTitle, actGoal };
 };
 
-
-// --- Markdown Parser Helper ---
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
   const parseInline = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*)/g);
@@ -149,7 +145,7 @@ const RightPanel: React.FC = () => {
     addCharacter, addLocation, addScene, deleteCharacter, deleteLocation, deleteScene, bulkDeleteItems,
     addChatMessage, showConfirmation, isRightPanelOpen, replaceTextInProject 
   } = useProject();
-  const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'| 'plan' | 'structure'>('assistant');
+  const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
   
   // Chat State
   const [input, setInput] = useState('');
@@ -160,6 +156,7 @@ const RightPanel: React.FC = () => {
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showKeyDialog, setShowKeyDialog] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("ئامادەکردنی دیمەنەکە...");
 
   // Goal State
   const [activeGoal, setActiveGoal] = useState<string | null>(null);
@@ -168,6 +165,15 @@ const RightPanel: React.FC = () => {
 
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
   const messages = currentProject?.chatHistory || [];
+
+  const loadingMessages = [
+    "ئامادەکردنی دیمەنەکە...",
+    "شیکردنەوەی دەق و دروستکردنی پلان...",
+    "بەکارخستنی مۆدێلی Veo...",
+    "دروستکردنی فریمەکان بە کوالێتی بەرز...",
+    "تەواوکردنی ڕووناکی و جوڵە...",
+    "بەرهەمهێنانی ڤیدیۆکە..."
+  ];
 
   useEffect(() => {
     setIsChatLoading(false);
@@ -197,34 +203,53 @@ const RightPanel: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isChatLoading, currentProject?.id]);
 
+  useEffect(() => {
+    let interval: any;
+    if (isProcessing) {
+      let index = 0;
+      interval = setInterval(() => {
+        index = (index + 1) % loadingMessages.length;
+        setLoadingMessage(loadingMessages[index]);
+      }, 12000); // Cycle every 12 seconds given generation takes 2-5 mins
+    }
+    return () => clearInterval(interval);
+  }, [isProcessing]);
+
   const checkAndGenerateVideo = async () => {
     if (!scene || !scene.content) return;
-
-    // 1. Check if user has selected a paid API key for Veo
-    // This is required for Veo models.
-    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-    if (!hasKey) {
+    
+    try {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+            setShowKeyDialog(true);
+            return;
+        }
+        startVideoGen();
+    } catch (e) {
         setShowKeyDialog(true);
-        return;
     }
-
-    startVideoGen();
   };
 
   const startVideoGen = async () => {
+    if (isProcessing) return;
     setIsProcessing(true);
     setShowKeyDialog(false);
+    setLoadingMessage(loadingMessages[0]);
+    
     try {
         const plainText = scene!.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const videoUrl = await generateSceneVideo(plainText || scene!.title);
         if (videoUrl) {
           setGeneratedVideo(videoUrl);
+        } else {
+          alert("نەمتوانی ڤیدیۆکە دروست بکەم. تکایە دووبارە هەوڵ بدەرەوە.");
         }
     } catch (err: any) {
         if (err.message === 'API_KEY_RESET') {
             setShowKeyDialog(true);
         } else {
             console.error("Video Gen Error", err);
+            alert("هەڵەیەک ڕوویدا لە کاتی دروستکردنی ڤیدیۆکە.");
         }
     } finally {
         setIsProcessing(false);
@@ -232,9 +257,13 @@ const RightPanel: React.FC = () => {
   };
 
   const handleOpenSelectKey = async () => {
-    await (window as any).aistudio.openSelectKey();
-    // Proceed immediately after triggering dialog as per race condition rule
-    startVideoGen();
+    try {
+        await (window as any).aistudio.openSelectKey();
+        // GUIDELINE: Proceed immediately after trigger to mitigate race condition
+        startVideoGen();
+    } catch (e) {
+        console.error("Failed to open key selector", e);
+    }
   };
 
   const buildDeepContext = () => {
@@ -723,7 +752,8 @@ const RightPanel: React.FC = () => {
                         <video 
                             src={generatedVideo} 
                             controls 
-                            className="w-full rounded-lg shadow-lg border border-zinc-700"
+                            className="w-full rounded-lg shadow-lg border border-zinc-700 bg-black"
+                            autoPlay
                         />
                         <div className="absolute top-2 left-2 flex gap-2 opacity-0 group-hover:opacity-100 transition z-10">
                              <a 
@@ -733,20 +763,34 @@ const RightPanel: React.FC = () => {
                              >
                                  داگرتن
                              </a>
+                             <button 
+                                onClick={checkAndGenerateVideo}
+                                className="bg-primary-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-primary-500 transition shadow-lg"
+                             >
+                                 نوێکردنەوە
+                             </button>
                         </div>
                     </div>
                 ) : (
-                    <div className="aspect-video bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex flex-col items-center justify-center text-zinc-600 mb-4">
+                    <div className="aspect-video bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex flex-col items-center justify-center text-zinc-600 mb-4 overflow-hidden">
                         {isProcessing ? (
-                             <div className="flex flex-col items-center gap-3">
-                                <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-                                <span className="text-xs animate-pulse">ڤیدیۆکە دروست دەکرێت... (لەنێوان ٢-٥ خولەک)</span>
+                             <div className="flex flex-col items-center gap-4 p-6 w-full max-w-xs">
+                                <div className="relative">
+                                    <div className="w-12 h-12 rounded-full border-2 border-primary-900 border-t-primary-500 animate-spin"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <Video className="w-5 h-5 text-primary-500/50" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-xs text-zinc-200 font-medium block animate-pulse">{loadingMessage}</span>
+                                    <span className="text-[10px] text-zinc-500 block leading-relaxed">ئەم پرۆسەیە لەوانەیە ٢-٥ خولەک بخایەنێت. تکایە چاوەڕێ بکە.</span>
+                                </div>
                              </div>
                         ) : (
-                            <>
-                                <Video className="w-8 h-8 mb-2 opacity-50" />
-                                <span className="text-xs">هیچ ڤیدیۆیەک نییە</span>
-                            </>
+                            <div className="p-8">
+                                <Video className="w-10 h-10 mb-3 opacity-20 mx-auto" />
+                                <span className="text-xs font-medium text-zinc-500">ڤیدیۆیەک بۆ ئەم دیمەنە دروست نەکراوە</span>
+                            </div>
                         )}
                     </div>
                 )}
@@ -755,32 +799,43 @@ const RightPanel: React.FC = () => {
                     <button 
                         onClick={checkAndGenerateVideo}
                         disabled={isProcessing || !scene}
-                        className="w-full bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold px-4 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="w-full bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold px-4 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
                     >
-                        {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (generatedVideo ? <RotateCcw className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />)}
-                        {generatedVideo ? "دروستکردنەوە" : "دروستکردنی ڤیدیۆ"}
+                        {isProcessing ? (
+                            <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>خەریکی دروستکردنە...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>{generatedVideo ? "دووبارە دروستکردنەوە" : "دروستکردنی ڤیدیۆ"}</span>
+                            </>
+                        )}
                     </button>
                 ) : (
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 animate-in fade-in zoom-in">
-                        <AlertTriangle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-                        <h4 className="text-xs font-bold text-zinc-200 mb-1">پێویستت بە کلیلی API هەیە</h4>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 animate-in fade-in zoom-in text-right">
+                        <div className="flex items-center gap-2 mb-2 justify-end">
+                            <h4 className="text-xs font-bold text-zinc-200">پێویستت بە کلیلی API هەیە</h4>
+                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        </div>
                         <p className="text-[10px] text-zinc-500 mb-4 leading-relaxed">
-                            بۆ بەکارهێنانی Veo، پێویستە کلیلی API تایبەت بە خۆت هەڵبژێریت. تکایە دڵنیابەرەوە کە پڕۆژەیەکی خاوەن پارە (Paid GCP Project) بەکاردەهێنیت.
+                            بۆ بەکارهێنانی مۆدێلی ڤیدیۆی Veo، پێویستە کلیلی API تایبەت بە خۆت هەڵبژێریت. تکایە پڕۆژەیەکی خاوەن پارە (Paid) بەکاربهێنە.
                         </p>
                         <div className="flex flex-col gap-2">
                             <button 
                                 onClick={handleOpenSelectKey}
-                                className="bg-white text-black text-xs font-bold px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-zinc-200 transition"
+                                className="bg-white text-black text-xs font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-zinc-200 transition shadow-lg"
                             >
-                                <ExternalLink className="w-3.5 h-3.5" /> هەڵبژاردنی کلیل
+                                <ExternalLink className="w-3.5 h-3.5" /> هەڵبژاردنی کلیلی API
                             </button>
                             <a 
                                 href="https://ai.google.dev/gemini-api/docs/billing" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-[10px] text-primary-500 hover:underline flex items-center justify-center gap-1"
+                                className="text-[10px] text-primary-500 hover:text-primary-400 hover:underline flex items-center justify-center gap-1 mt-1 transition"
                             >
-                                زانیاری دەربارەی پارەدان <ArrowUpRight className="w-3 h-3" />
+                                زانیاری زیاتر دەربارەی پارەدان <ArrowUpRight className="w-3 h-3" />
                             </a>
                         </div>
                     </div>
@@ -788,7 +843,9 @@ const RightPanel: React.FC = () => {
              </div>
              
              {!scene && !isProcessing && (
-                 <p className="text-xs text-zinc-500 text-center">تکایە سەرەتا دیمەنێک لە دەستکاریکەر (Editor) دیاری بکە.</p>
+                 <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 text-center">
+                    <p className="text-xs text-zinc-500 leading-relaxed">تکایە سەرەتا دیمەنێک لە بەشی "دیمەنەکان" یان "Editor" دیاری بکە بۆ ئەوەی ڤیدیۆی بۆ دروست بکەین.</p>
+                 </div>
              )}
         </div>
       )}
