@@ -402,7 +402,7 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                 suppressContentEditableWarning
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                className={`page-surface bg-zinc-900 border border-zinc-800 shadow-2xl text-[16px] leading-relaxed outline-none text-zinc-300 ${isNovelMode ? 'font-novel novel-content' : 'font-screenplay screenplay-mode'} whitespace-pre-wrap`}
+                className={`page-surface bg-zinc-900 border border-zinc-800 shadow-2xl leading-relaxed outline-none text-zinc-300 ${isNovelMode ? 'font-novel novel-content' : 'font-screenplay screenplay-mode'} whitespace-pre-wrap`}
                 style={{
                     width: '210mm',
                     height: '297mm',
@@ -410,7 +410,8 @@ const Page = React.memo(({ id, index, initialContent, onUpdate, onSplit, onUnder
                     boxSizing: 'border-box',
                     overflow: 'hidden', 
                     position: 'relative',
-                    textAlign: isNovelMode ? 'justify' : 'right'
+                    textAlign: isNovelMode ? 'justify' : 'right',
+                    fontSize: '16px' // Enforced 16px Font Size
                 }}
             />
             {/* Page Number - Bottom Center */}

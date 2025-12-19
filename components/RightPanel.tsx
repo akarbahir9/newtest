@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wifi, AlertTriangle, Sparkles, Mic2, 
   Image, Mic, ArrowUp, FileInput, 
-  FileCheck, Replace, PanelLeft, Loader2, RotateCcw, Target, Scale
+  // Added ArrowUpRight to the imports
+  FileCheck, Replace, PanelLeft, Loader2, RotateCcw, Target, Scale, Video, ExternalLink, ArrowUpRight
 } from 'lucide-react';
-import { generateAssistantResponse, generateStoryboardImage } from '../services/geminiService';
+import { generateAssistantResponse, generateStoryboardImage, generateSceneVideo } from '../services/geminiService';
 import { ChatMessage, Character } from '../types';
 import { useProject } from '../context/ProjectContext';
 
@@ -32,7 +34,6 @@ const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: str
     let actGoal = null;
     
     // 1. Find the section for this specific Scene/Chapter
-    // Matches: "## Chapter 1", "## 1.", "### Scene 1", "### 1", etc.
     const headerRegex = new RegExp(`(?:^|\\n)(#{2,3})\\s*(?:Chapter|Scene|Episode)?\\s*${sceneNumber}\\b[:.]?\\s*(.*?)(?=(?:\\n#{2,3})|$)`, 'is');
     const match = blueprint.match(headerRegex);
 
@@ -41,24 +42,19 @@ const extractGoalAndTarget = (blueprint: string, sceneNumber: number, title: str
         const rawTitle = match[2]?.trim();
         planTitle = rawTitle ? rawTitle.replace(/\[.*?\]/g, '').trim() : `Chapter ${sceneNumber}`;
         
-        // Extract Goal from Section
         const goalMatch = fullSection.match(/(?:\*\*|\[)?\s*Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (goalMatch && goalMatch[1]) goal = goalMatch[1].trim();
 
-        // Extract Target from Section
         const targetMatch = fullSection.match(/(?:\*\*|\[)?\s*(?:Page Target|Target|Length|Word Count)\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
         if (targetMatch && targetMatch[1]) target = targetMatch[1].trim();
         
-        // 2. Find Parent Act Goal (Backward Search)
         const index = match.index || 0;
         const textBefore = blueprint.substring(0, index);
-        // Find last "# Act X" occurrence
         const acts = [...textBefore.matchAll(/^#\s*Act\s+\w+.*$/gm)];
         if (acts.length > 0) {
             const lastActHeader = acts[acts.length - 1][0];
-            // Find goal associated with this Act line (or immediate lines after)
             const actIndex = textBefore.lastIndexOf(lastActHeader);
-            const actSection = textBefore.substring(actIndex, index); // Text between Act Header and Current Scene
+            const actSection = textBefore.substring(actIndex, index); 
             
             const actGoalMatch = actSection.match(/(?:\*\*|\[)?\s*Act Goal\s*(?:\*\*|\])?:?\s*(.*?)(?:\]|\n|$)/i);
             if (actGoalMatch) actGoal = actGoalMatch[1].trim();
@@ -153,7 +149,7 @@ const RightPanel: React.FC = () => {
     addCharacter, addLocation, addScene, deleteCharacter, deleteLocation, deleteScene, bulkDeleteItems,
     addChatMessage, showConfirmation, isRightPanelOpen, replaceTextInProject 
   } = useProject();
-  const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'>('assistant');
+  const [activeTab, setActiveTab] = useState<'assistant' | 'visuals'| 'plan' | 'structure'>('assistant');
   
   // Chat State
   const [input, setInput] = useState('');
@@ -161,8 +157,9 @@ const RightPanel: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Visuals State
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isImageLoading, setIsImageLoading] = useState(false);
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showKeyDialog, setShowKeyDialog] = useState(false);
 
   // Goal State
   const [activeGoal, setActiveGoal] = useState<string | null>(null);
@@ -170,23 +167,18 @@ const RightPanel: React.FC = () => {
   const [planTitle, setPlanTitle] = useState<string | null>(null);
 
   const scene = currentProject?.scenes.find(s => s.id === currentSceneId);
-  
-  // Use messages from current project
   const messages = currentProject?.chatHistory || [];
 
-  // Reset loading state when project changes to avoid ghost loading states
   useEffect(() => {
     setIsChatLoading(false);
-    setGeneratedImage(null);
-    setIsImageLoading(false);
+    setGeneratedVideo(null);
+    setIsProcessing(false);
   }, [currentProject?.id]);
 
   useEffect(() => {
-    // Reset image when scene changes
-    setGeneratedImage(null);
+    setGeneratedVideo(null);
   }, [currentSceneId]);
 
-  // GOAL EXTRACTION EFFECT
   useEffect(() => {
       if (currentProject && scene) {
           const { goal, target, planTitle } = extractGoalAndTarget(
@@ -205,16 +197,44 @@ const RightPanel: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isChatLoading, currentProject?.id]);
 
-  const handleGenerateImage = async () => {
+  const checkAndGenerateVideo = async () => {
     if (!scene || !scene.content) return;
-    setIsImageLoading(true);
-    // Strip HTML tags for cleaner prompt
-    const plainText = scene.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const imgData = await generateStoryboardImage(plainText || scene.title);
-    if (imgData) {
-      setGeneratedImage(imgData);
+
+    // 1. Check if user has selected a paid API key for Veo
+    // This is required for Veo models.
+    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+        setShowKeyDialog(true);
+        return;
     }
-    setIsImageLoading(false);
+
+    startVideoGen();
+  };
+
+  const startVideoGen = async () => {
+    setIsProcessing(true);
+    setShowKeyDialog(false);
+    try {
+        const plainText = scene!.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const videoUrl = await generateSceneVideo(plainText || scene!.title);
+        if (videoUrl) {
+          setGeneratedVideo(videoUrl);
+        }
+    } catch (err: any) {
+        if (err.message === 'API_KEY_RESET') {
+            setShowKeyDialog(true);
+        } else {
+            console.error("Video Gen Error", err);
+        }
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleOpenSelectKey = async () => {
+    await (window as any).aistudio.openSelectKey();
+    // Proceed immediately after triggering dialog as per race condition rule
+    startVideoGen();
   };
 
   const buildDeepContext = () => {
@@ -259,6 +279,7 @@ const RightPanel: React.FC = () => {
         ${currentProject?.blueprint || 'No plan defined.'}
         
         === CURRENT ACTIVE GOAL (Extracted from Plan) ===
+        CURRENT PLAN CHAPTER TITLE: "${planTitle || 'Unknown'}"
         Matched Plan Section: ${planTitle || 'Unknown'}
         Goal: ${activeGoal || 'None detected'}
         Length Target: ${activeTarget || 'None detected'}
@@ -284,15 +305,12 @@ const RightPanel: React.FC = () => {
       const projectId = currentProject.id;
       const userMsg: ChatMessage = { id: generateId(), role: 'user', text: command };
       
-      // Update persistent storage immediately
       addChatMessage(projectId, userMsg);
-      
       setIsChatLoading(true);
 
       try {
         const contextString = buildDeepContext();
         
-        // Reconstruct history for API from current project state + new message
         const currentHistory = currentProject.chatHistory || [];
         const apiHistory = [...currentHistory, userMsg].map(m => ({
           role: m.role,
@@ -305,7 +323,6 @@ const RightPanel: React.FC = () => {
             contextString
         );
         
-        // Handle Tool Calls (Logic remains same as before)
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (const call of response.toolCalls) {
                 if (call.name === 'update_project_metadata') {
@@ -569,13 +586,13 @@ const RightPanel: React.FC = () => {
       {/* CONTENT: ASSISTANT */}
       {activeTab === 'assistant' && (
         <>
-            {/* GOAL TRACKER (NEW) */}
+            {/* GOAL TRACKER */}
             <div className="p-4 pb-0 flex-shrink-0 z-10 bg-zinc-925">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xxs font-semibold text-zinc-500 uppercase flex items-center gap-1 truncate max-w-[70%]">
                             <Target className="w-3 h-3 flex-shrink-0" />
-                            {planTitle ? `ئامانجی: ${planTitle}` : 'ئامانجی ئەم بەشە'}
+                            {planTitle ? `پلانی: ${planTitle}` : 'ئامانجی ئەم بەشە'}
                         </span>
                         {activeTarget && (
                             <span className="text-xxs text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 whitespace-nowrap">
@@ -684,7 +701,7 @@ const RightPanel: React.FC = () => {
                 <div className="mt-2 flex justify-between items-center px-1">
                     <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-xxs text-zinc-500 hidden sm:block">مۆدێل: Gemini 2.5</span>
+                        <span className="text-xxs text-zinc-500 hidden sm:block">مۆدێل: Gemini 3</span>
                     </div>
                     <span className="text-xxs text-zinc-600">Cmd+K بۆ فرمانەکان</span>
                 </div>
@@ -695,38 +712,82 @@ const RightPanel: React.FC = () => {
       {activeTab === 'visuals' && (
         <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 w-full text-center mb-6">
-                <h3 className="text-sm font-bold text-zinc-200 mb-1">وێنەکێشانی دیمەن (Storyboard Sketch)</h3>
-                <p className="text-xs text-zinc-500 mb-4">دیمەنی ئێستا بکە بە وێنەیەکی ڕەش و سپی سینەمایی.</p>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                    <Video className="w-5 h-5 text-primary-500" />
+                    <h3 className="text-sm font-bold text-zinc-200">دروستکردنی ڤیدیۆی دیمەن (Veo)</h3>
+                </div>
+                <p className="text-xs text-zinc-500 mb-4">دیمەنی ئێستا بکە بە ڤیدیۆیەکی سینەمایی بە یارمەتی Veo.</p>
                 
-                {generatedImage ? (
-                    <div className="relative group">
-                        <img src={generatedImage} alt="Storyboard sketch" className="w-full rounded-lg shadow-lg border border-zinc-700" />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                             <a href={generatedImage} download="storyboard_sketch.png" className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full hover:bg-zinc-200">
+                {generatedVideo ? (
+                    <div className="relative group mb-4">
+                        <video 
+                            src={generatedVideo} 
+                            controls 
+                            className="w-full rounded-lg shadow-lg border border-zinc-700"
+                        />
+                        <div className="absolute top-2 left-2 flex gap-2 opacity-0 group-hover:opacity-100 transition z-10">
+                             <a 
+                                href={generatedVideo} 
+                                download="scene_video.mp4" 
+                                className="bg-white/90 backdrop-blur-sm text-black text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-white transition shadow-lg"
+                             >
                                  داگرتن
                              </a>
                         </div>
                     </div>
                 ) : (
-                    <div className="aspect-square bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex flex-col items-center justify-center text-zinc-600">
-                        <Image className="w-8 h-8 mb-2 opacity-50" />
-                        <span className="text-xs">هیچ وێنەیەک نییە</span>
+                    <div className="aspect-video bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex flex-col items-center justify-center text-zinc-600 mb-4">
+                        {isProcessing ? (
+                             <div className="flex flex-col items-center gap-3">
+                                <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+                                <span className="text-xs animate-pulse">ڤیدیۆکە دروست دەکرێت... (لەنێوان ٢-٥ خولەک)</span>
+                             </div>
+                        ) : (
+                            <>
+                                <Video className="w-8 h-8 mb-2 opacity-50" />
+                                <span className="text-xs">هیچ ڤیدیۆیەک نییە</span>
+                            </>
+                        )}
                     </div>
                 )}
 
-                <div className="mt-4 flex justify-center">
-                     <button 
-                        onClick={handleGenerateImage}
-                        disabled={isImageLoading || !scene}
-                        className="bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                     >
-                        {isImageLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (generatedImage ? <RotateCcw className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />)}
-                        {generatedImage ? "دروستکردنەوە" : "دروستکردنی سکێچ"}
-                     </button>
-                </div>
+                {!showKeyDialog ? (
+                    <button 
+                        onClick={checkAndGenerateVideo}
+                        disabled={isProcessing || !scene}
+                        className="w-full bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold px-4 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                        {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (generatedVideo ? <RotateCcw className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />)}
+                        {generatedVideo ? "دروستکردنەوە" : "دروستکردنی ڤیدیۆ"}
+                    </button>
+                ) : (
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 animate-in fade-in zoom-in">
+                        <AlertTriangle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                        <h4 className="text-xs font-bold text-zinc-200 mb-1">پێویستت بە کلیلی API هەیە</h4>
+                        <p className="text-[10px] text-zinc-500 mb-4 leading-relaxed">
+                            بۆ بەکارهێنانی Veo، پێویستە کلیلی API تایبەت بە خۆت هەڵبژێریت. تکایە دڵنیابەرەوە کە پڕۆژەیەکی خاوەن پارە (Paid GCP Project) بەکاردەهێنیت.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button 
+                                onClick={handleOpenSelectKey}
+                                className="bg-white text-black text-xs font-bold px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-zinc-200 transition"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5" /> هەڵبژاردنی کلیل
+                            </button>
+                            <a 
+                                href="https://ai.google.dev/gemini-api/docs/billing" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-primary-500 hover:underline flex items-center justify-center gap-1"
+                            >
+                                زانیاری دەربارەی پارەدان <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    </div>
+                )}
              </div>
              
-             {!scene && (
+             {!scene && !isProcessing && (
                  <p className="text-xs text-zinc-500 text-center">تکایە سەرەتا دیمەنێک لە دەستکاریکەر (Editor) دیاری بکە.</p>
              )}
         </div>

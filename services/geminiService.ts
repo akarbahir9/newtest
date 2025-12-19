@@ -1,6 +1,9 @@
-import { GoogleGenAI, Type, FunctionDeclaration, Schema } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { GoogleGenAI, Type, FunctionDeclaration, Schema, Modality } from "@google/genai";
+
+// Note: GoogleGenAI instance should be created right before use for Veo models 
+// to ensure the latest API key from the selection dialog is used.
+const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- Existing Tools ---
 const updateProjectTool: FunctionDeclaration = {
@@ -61,6 +64,7 @@ const bulkCreateCharactersTool: FunctionDeclaration = {
         type: Type.OBJECT,
         properties: {
             characters: {
+                // Fixed: Changed ARRAY to Type.ARRAY
                 type: Type.ARRAY,
                 items: {
                     type: Type.OBJECT,
@@ -236,7 +240,8 @@ export const generateAssistantResponse = async (
   projectContext?: string
 ): Promise<{ text: string, toolCalls?: any[] }> => {
   try {
-    const model = 'gemini-2.5-flash';
+    const ai = getAIClient();
+    const model = 'gemini-3-flash-preview';
     const safeContext = projectContext ? projectContext.slice(0, 100000) : '';
 
     // Check Project Type from context
@@ -250,20 +255,26 @@ export const generateAssistantResponse = async (
 
     let systemInstruction = `You are Zoer, an elite creative writing AI. You speak and write primarily in Kurdish (Sorani).
     
-    === GOAL TRACKER & PACING ENGINE ===
-    Check the [Current Active Goal] and [Length Target] in the context.
+    === STRICT NARRATIVE CONTROL & CHUNKING PROTOCOL ===
+    Check the [Current Plan Chapter Title] and [Length Target] in the context.
     
-    **CRITICAL LENGTH INSTRUCTION:**
-    You must rigorously adhere to the "Length Target" or "Page Target".
-    - If the target is LARGE (e.g., 20 pages, 5000 words) and the current word count is LOW:
-      1. **DO NOT RESOLVE THE SCENE**. Do not rush to the end.
-      2. **SLOW DOWN PACING**. Focus on microscopic details, sensory experiences, internal monologues, and environmental descriptions.
-      3. Write in "Slow Motion". Expand every action.
-      4. If asked to write the chapter, write *Chunk 1 of X*. Do not try to fit the whole chapter in one response if it's meant to be long.
-      5. Insert meaningful dialogue and subtext to fill the space effectively.
+    1. **CHAPTER TITLE ENFORCEMENT**:
+       - If "CURRENT PLAN CHAPTER TITLE" is present in the context, you **MUST** use that exact title for the chapter header (<h1>).
+       - Do **NOT** invent a new title. Match the plan exactly.
     
-    - If the target is met:
-      1. Wrap up the scene/chapter naturally.
+    2. **LENGTH TARGET & CHUNKING (CRITICAL)**:
+       - IF the [Length Target] is HIGH (e.g., > 8 pages or 2000+ words):
+         - **DO NOT** attempt to write the entire chapter in one response.
+         - **YOU MUST WRITE IN CHUNKS.**
+         - Explicitly state at the start: "Writing Part [X] of [Total]..."
+         - Write **MAXIMUM DENSITY**. Produce at least 1500-2000 words per response (Chunk).
+         - **SLOW DOWN PACING**: Describe everything. The environment, the smell, the light, the internal monologue, the texture of objects.
+         - **DO NOT SKIP TIME**. 1 minute of story time can be 2 pages of text.
+         - End the response with: "**[End of Part X. Type 'Continue' for next part]**".
+       
+       - IF the user says "Continue":
+         - Pick up EXACTLY where the text left off. Do not summarize the previous part. Continue the action immediately.
+
     `;
 
     if (isNovel) {
@@ -285,7 +296,7 @@ export const generateAssistantResponse = async (
        - IF A CHARACTER SPEAKS, IT MUST BE A NEW PARAGRAPH.
        - IF THE ACTION SHIFTS TO ANOTHER CHARACTER, IT MUST BE A NEW PARAGRAPH.
     2. **HTML TAGS:** 
-       - Use <h1> for Chapter Titles.
+       - Use <h1> for Chapter Titles (Must match Plan).
        - Use <p> for descriptive prose.
        - **Use <p class="novel-dialogue"> for ANY paragraph that contains dialogue.** THIS IS MANDATORY.
          Example: <p class="novel-dialogue">"بەڵێ، دڵنیام،" ئازاد وتی.</p>
@@ -362,13 +373,14 @@ export const generateAssistantResponse = async (
       3. Keep any conversational text or explanations OUTSIDE the tags.
       
       Example Response:
-      Here is the draft for the scene:
+      Here is Part 1 of the chapter:
       <screenplay>
       <div class="sp-slug">INT. OFFICE - DAY</div>
       <div class="sp-action">Joe sits at his desk.</div>
       <div class="sp-character">JOE</div>
       <div class="sp-dialogue">"I need to finish this."</div>
       </screenplay>
+      [End of Part 1. Type "Continue" for Part 2.]
     
     - **Editing:** When asked to "rewrite" or "fix", output the FULL HTML for the scene wrapped in <screenplay> tags as well.
     
@@ -434,6 +446,7 @@ export const generateStoryBuilderChat = async (
     finalData?: any 
 }> => {
     try {
+        const ai = getAIClient();
         const systemInstruction = `You are Zoer's Creative Consultant. You speak in Kurdish (Sorani).
         
         GOAL: Interview the user to build a complete concept for a new Story (Screenplay, Novel, Series, or Advertisement).
@@ -456,7 +469,7 @@ export const generateStoryBuilderChat = async (
         `;
 
         const chat = ai.chats.create({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             config: {
                 systemInstruction,
                 tools: [{ functionDeclarations: [finalizeStoryTool] }],
@@ -526,8 +539,9 @@ export const extractCharactersFromText = async (text: string): Promise<any[]> =>
     if (!text || text.length < 10) return [];
     
     try {
+        const ai = getAIClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: `Analyze the following story plan/blueprint and extract all characters mentioned or implied.
             
             STORY PLAN:
@@ -597,8 +611,9 @@ export const extractLocationsFromText = async (text: string): Promise<any[]> => 
     if (!text || text.length < 10) return [];
 
     try {
+        const ai = getAIClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: `Analyze the following story plan/blueprint and extract all specific locations mentioned or implied.
             
             STORY PLAN:
@@ -692,6 +707,7 @@ export const generateAutocomplete = async (
         - Do not resolve the scene yet.`;
     }
 
+    const ai = getAIClient();
     const prompt = `You are a creative writing assistant for Kurdish (Sorani).
     TASK: Continue the story text naturally.
     
@@ -722,7 +738,7 @@ export const generateAutocomplete = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         maxOutputTokens: 80,
@@ -747,10 +763,11 @@ export const generateAutocomplete = async (
 
 export const generateStructuredSuggestions = async (context: string): Promise<any> => {
   try {
+    const ai = getAIClient();
     const safeContext = context.slice(0, 100000);
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: `You are a sophisticated story engine. Analyze the provided metadata and scene content.
       Generate 4 distinct types of suggestions in Kurdish (Sorani): Plot, Character, World, Complication.
       CONTEXT: ${safeContext}
@@ -776,6 +793,7 @@ export const generateStoryPlanChat = async (
     projectContext: any
 ): Promise<{ text: string, newPlan?: string }> => {
     try {
+        const ai = getAIClient();
         // --- MASTER ARCHITECT PROMPT ---
         const charList = projectContext.characters?.map((c: any) => 
             `- ${c.name} (${c.role}, ${c.archetype}): ${c.description}. Goal/Traits: ${c.traits?.join(', ')}`
@@ -822,7 +840,7 @@ export const generateStoryPlanChat = async (
         `;
 
         const chat = ai.chats.create({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             config: {
                 systemInstruction,
                 tools: [{ functionDeclarations: [updateBlueprintTool] }],
@@ -853,8 +871,44 @@ export const generateStoryPlanChat = async (
     }
 };
 
+export const generateSceneVideo = async (sceneContext: string): Promise<string | null> => {
+  try {
+    const ai = getAIClient();
+    const prompt = `A cinematic cinematic video clip for the following story scene. High production value, atmosphere. \n\nSCENE:\n${sceneContext.slice(0, 1000)}`;
+    
+    let operation = await ai.models.generateVideos({
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: prompt,
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: '16:9'
+      }
+    });
+
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      operation = await ai.operations.getVideosOperation({ operation: operation });
+    }
+
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (downloadLink) {
+      return `${downloadLink}&key=${process.env.API_KEY}`;
+    }
+    return null;
+  } catch (error) {
+    console.error("Video Generation Error:", error);
+    // Handle API key selection if requested
+    if (error.message && error.message.includes("Requested entity was not found")) {
+        throw new Error("API_KEY_RESET");
+    }
+    return null;
+  }
+};
+
 export const generateStoryboardImage = async (sceneContext: string): Promise<string | null> => {
   try {
+    const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -876,6 +930,7 @@ export const generateStoryboardImage = async (sceneContext: string): Promise<str
 
 export const generateCharacterVisuals = async (name: string, description: string, role: string): Promise<{ refSheet: string | null, avatar: string | null }> => {
   try {
+    const ai = getAIClient();
     const refPrompt = `Character Design Reference Sheet: "${name}", ${role}. ${description}.
     Layout: Three distinct views (Front, Side, Back) arranged horizontally. Full body.
     Style: Masterpiece Concept Art, 8k Resolution, Unreal Engine 5 Render style, detailed textures.
@@ -924,6 +979,7 @@ export const generateCharacterVisuals = async (name: string, description: string
 
 export const generateLocationVisuals = async (name: string, description: string, type: string): Promise<string | null> => {
   try {
+    const ai = getAIClient();
     const prompt = `A cinematic environment concept art sheet for the location "${name}" (${type}).
     DESCRIPTION: ${description}.
     
